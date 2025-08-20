@@ -5,6 +5,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   user: any | null;
   login: (username: string, password: string) => Promise<void>;
+  loginWithCode: (phone: string, code: string) => Promise<void>;
   logout: () => void;
   token: string | null;
 }
@@ -58,6 +59,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginWithCode = async (phone: string, code: string) => {
+    try {
+      const response = await axios.post('/users/verify_login_code/', { 
+        phone_number: phone, 
+        code: code 
+      });
+      const { access, refresh } = response.data;
+      localStorage.setItem('token', access);
+      localStorage.setItem('refreshToken', refresh);
+      setToken(access);
+      // axios.defaults.headers.common['Authorization'] will be set by useEffect
+    } catch (error) {
+      console.error('Login with code error:', error);
+      throw error;
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
@@ -68,7 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, token }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, login, loginWithCode, logout, token }}>
       {children}
     </AuthContext.Provider>
   );
