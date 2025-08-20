@@ -16,8 +16,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<any | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
 
-  // Set axios base URL
-  axios.defaults.baseURL = 'http://localhost:8000/api';
+  // Set axios base URL from environment variable
+  axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
   axios.defaults.headers.common['Content-Type'] = 'application/json';
 
   // Set Authorization header whenever token changes
