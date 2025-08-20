@@ -39,6 +39,13 @@ const AssistantDashboard: React.FC = () => {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [unitFilter, setUnitFilter] = useState<'all' | number>('all');
+  const [approvalModalVisible, setApprovalModalVisible] = useState(false);
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [approvalForm] = Form.useForm();
+  const [rejectForm] = Form.useForm();
 
   useEffect(() => {
     const initializeData = async () => {
@@ -60,6 +67,13 @@ const AssistantDashboard: React.FC = () => {
       }
     };
     initializeData();
+  }, [user]);
+
+  // Ensure unitFilter updates when user loads
+  useEffect(() => {
+    if (user?.department_unit?.id) {
+      setUnitFilter(user.department_unit.id);
+    }
   }, [user]);
 
   const fetchActionLogs = async () => {
@@ -156,8 +170,12 @@ const AssistantDashboard: React.FC = () => {
 
   const handleCreate = async (values: any) => {
     try {
+      // Convert string IDs to integers for assigned_to
+      const assignedToInts = values.assigned_to ? values.assigned_to.map((id: string) => parseInt(id)) : [];
+      
       await actionLogService.create({
         ...values,
+        assigned_to: assignedToInts,
         created_by: user.id,
         department: user.department
       });
@@ -220,25 +238,100 @@ const AssistantDashboard: React.FC = () => {
     }
   };
 
-  const handleApprove = async (logId: number) => {
+  const handleApprove = async (values: any) => {
     try {
-      await actionLogService.approve(logId);
+      if (!selectedLog) {
+        console.log('handleApprove: No selectedLog');
+        return;
+      }
+      setApproving(true);
+      
+      const userRoleName = (user?.role?.name || '').toLowerCase();
+      const isAssistantCommissioner = userRoleName.includes('assistant_commissioner');
+      
+      // Check if user can approve based on the hierarchical workflow
+      const canApproveAtStage = (
+        selectedLog.status === 'pending_approval' &&
+        selectedLog.closure_approval_stage !== 'none' &&
+        selectedLog.closure_approval_stage === 'assistant_commissioner' && 
+        isAssistantCommissioner
+      );
+      
+      console.log('handleApprove called', {
+        selectedLog,
+        user,
+        isAssistantCommissioner,
+        canApproveAtStage,
+        closure_approval_stage: selectedLog.closure_approval_stage
+      });
+      
+      if (!canApproveAtStage) {
+        console.log('handleApprove: Not authorized', { canApproveAtStage });
+        message.error('You are not authorized to approve this action log');
+        return;
+      }
+      
+      await actionLogService.approve(selectedLog.id, {
+        comment: values.comment || ''
+      });
+      
       message.success('Action log approved successfully');
+      setApprovalModalVisible(false);
+      approvalForm.resetFields();
       fetchActionLogs();
     } catch (error) {
       console.error('Error approving action log:', error);
       message.error('Failed to approve action log');
+    } finally {
+      setApproving(false);
     }
   };
 
-  const handleReject = async (logId: number, reason: string) => {
+  const handleReject = async (values: any) => {
     try {
-      await actionLogService.reject(logId, { reason });
+      if (!selectedLog) {
+        console.log('handleReject: No selectedLog');
+        return;
+      }
+      setRejecting(true);
+      
+      // Only Ag. C/PAP users can reject action logs
+      const isAgCPAP = user?.has_ag_cpap_designation || false;
+      
+      // Check if user can reject based on the new Ag. C/PAP only workflow
+      const canRejectAtStage = (
+        selectedLog.status === 'pending_approval' &&
+        selectedLog.closure_approval_stage !== 'none' &&
+        isAgCPAP
+      );
+      
+      console.log('handleReject called', {
+        selectedLog,
+        user,
+        isAgCPAP,
+        canRejectAtStage,
+        closure_approval_stage: selectedLog.closure_approval_stage
+      });
+      
+      if (!canRejectAtStage) {
+        console.log('handleReject: Not authorized', { canRejectAtStage });
+        message.error('Only users with Ag. C/PAP designation can reject action logs');
+        return;
+      }
+      
+      await actionLogService.reject(selectedLog.id, {
+        reason: values.reason || ''
+      });
+      
       message.success('Action log rejected successfully');
+      setRejectModalVisible(false);
+      rejectForm.resetFields();
       fetchActionLogs();
     } catch (error) {
       console.error('Error rejecting action log:', error);
       message.error('Failed to reject action log');
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -270,26 +363,130 @@ const AssistantDashboard: React.FC = () => {
   };
 
   const handleAddComment = async () => {
-    if (!newComment.trim()) {
-      message.warning('Please enter a comment');
-      return;
-    }
-
+    if (!newComment.trim()) return;
+    
     try {
       setSubmittingComment(true);
-      await actionLogService.addComment(selectedLogComments[0]?.action_log, {
-        content: newComment,
-        user: user.id
+      await actionLogService.addComment(selectedLogComments[0]?.action_log || 0, {
+        comment: newComment,
+        parent_id: undefined
       });
-      message.success('Comment added successfully');
       setNewComment('');
-      await fetchComments(selectedLogComments[0]?.action_log);
+      message.success('Comment added successfully');
+      // Refresh comments
+      if (selectedLogComments.length > 0) {
+        await handleViewComments(selectedLogComments[0].action_log);
+      }
     } catch (error) {
       console.error('Error adding comment:', error);
       message.error('Failed to add comment');
     } finally {
       setSubmittingComment(false);
     }
+  };
+
+  // Filter logs by search and status
+  const getFilteredLogs = () => {
+    let filteredLogs = [...actionLogs];
+    console.log('[ASSISTANT_DASHBOARD] getFilteredLogs: Starting with', filteredLogs.length, 'logs');
+    console.log('[ASSISTANT_DASHBOARD] getFilteredLogs: search =', search);
+    console.log('[ASSISTANT_DASHBOARD] getFilteredLogs: statusFilter =', statusFilter);
+
+    // Apply search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      filteredLogs = filteredLogs.filter(log => 
+        log.title.toLowerCase().includes(searchLower) ||
+        log.description.toLowerCase().includes(searchLower)
+      );
+      console.log('[ASSISTANT_DASHBOARD] getFilteredLogs: After search filter,', filteredLogs.length, 'logs remaining');
+    }
+
+    // Apply status filter
+    if (statusFilter) {
+      filteredLogs = filteredLogs.filter(log => 
+        log.status.toLowerCase() === statusFilter.toLowerCase()
+      );
+      console.log('[ASSISTANT_DASHBOARD] getFilteredLogs: After status filter,', filteredLogs.length, 'logs remaining');
+    }
+
+    console.log('[ASSISTANT_DASHBOARD] getFilteredLogs: Final result,', filteredLogs.length, 'logs');
+    return filteredLogs;
+  };
+
+  // Get unique units from actionLogs - get from assigned users instead of created_by
+  const uniqueUnits = Array.from(new Set(
+    actionLogs.flatMap(log => 
+      log.assigned_to?.map(assigneeId => {
+        const assignee = users.find(u => u.id === assigneeId);
+        return assignee?.department_unit?.id;
+      }).filter(Boolean) || []
+    )
+  ))
+    .filter(Boolean)
+    .map(id => {
+      const assignee = users.find(u => u.department_unit?.id === id);
+      const unitName = assignee?.department_unit?.name || `Unit ${id}`;
+      console.log('[ASSISTANT_DASHBOARD] uniqueUnits: Found unit', { id, name: unitName, assignee: assignee ? `${assignee.first_name} ${assignee.last_name}` : 'Unknown' });
+      return { 
+        id, 
+        name: unitName
+      };
+    });
+
+  console.log('[ASSISTANT_DASHBOARD] uniqueUnits: Final units', uniqueUnits);
+
+  // Filter logs by selected unit
+  const getUnitFilteredLogs = (logs: ActionLog[]): ActionLog[] => {
+    console.log('[ASSISTANT_DASHBOARD] getUnitFilteredLogs: Starting with', logs.length, 'logs');
+    console.log('[ASSISTANT_DASHBOARD] getUnitFilteredLogs: unitFilter =', unitFilter);
+    
+    // If unitFilter is 'all' or not set, return all logs
+    if (unitFilter === 'all' || !unitFilter) {
+      console.log('[ASSISTANT_DASHBOARD] getUnitFilteredLogs: Returning all logs (unitFilter is "all")');
+      return logs;
+    }
+    
+    const filteredLogs = logs.filter(log => {
+      // If user is assigned to this log, always show it
+      const isAssignedToMe = log.assigned_to?.includes(user?.id || 0);
+      if (isAssignedToMe) {
+        console.log('[ASSISTANT_DASHBOARD] getUnitFilteredLogs: Log', log.id, '- User is assigned, allowing through unit filter');
+        return true;
+      }
+      
+      // If user is the creator of the log, always show it (for unassigned logs)
+      const isCreator = log.created_by?.id === user?.id;
+      if (isCreator) {
+        console.log('[ASSISTANT_DASHBOARD] getUnitFilteredLogs: Log', log.id, '- User is creator, allowing through unit filter');
+        return true;
+      }
+      
+      // Check if any of the assigned users belong to the selected unit
+      const hasUserInSelectedUnit = log.assigned_to?.some(assigneeId => {
+        const assignee = users.find(u => u.id === assigneeId);
+        const assigneeUnitId = assignee?.department_unit?.id;
+        return assigneeUnitId === unitFilter;
+      });
+
+      // Check if this log is pending unit head approval for the current unit
+      const isPendingUnitHeadApproval = log.status === 'pending_approval' && 
+                                       log.closure_approval_stage === 'unit_head' && 
+                                       hasUserInSelectedUnit;
+
+      console.log('[ASSISTANT_DASHBOARD] getUnitFilteredLogs: Log', log.id, 
+        '- assigned_to =', log.assigned_to,
+        '- unitFilter =', unitFilter,
+        '- hasUserInSelectedUnit =', hasUserInSelectedUnit,
+        '- isPendingUnitHeadApproval =', isPendingUnitHeadApproval,
+        '- matches =', hasUserInSelectedUnit || isPendingUnitHeadApproval
+      );
+
+      return hasUserInSelectedUnit || isPendingUnitHeadApproval;
+    });
+
+    console.log('[ASSISTANT_DASHBOARD] getUnitFilteredLogs: After unit filter,', filteredLogs.length, 'logs remaining');
+    return filteredLogs;
   };
 
   const columns = [
@@ -369,79 +566,82 @@ const AssistantDashboard: React.FC = () => {
       title: 'Actions',
       key: 'actions',
       width: '10%',
-      render: (text: string, record: ActionLog) => (
-        <Space>
-          <Button type="link" onClick={() => navigate(`/action-logs/${record.id}`)}>
-            View
-          </Button>
-          {user.department_unit && user.department_unit.id === record.department_unit && user.designation?.toLowerCase().includes('head') && (
-            <Button 
-              type="link" 
-              onClick={() => {
-                setSelectedLog(record);
-                setAssignModalVisible(true);
-              }}
-            >
-              Assign
+      render: (text: string, record: ActionLog) => {
+        // Only show assign button to the original assigner
+        const isOriginalAssigner = record.original_assigner?.id === user.id;
+        const canAssign = user.department_unit && user.department_unit.id === record.department_unit && 
+                         user.designation?.toLowerCase().includes('head') && isOriginalAssigner;
+        const isAssistantCommissioner = user?.role?.name?.toLowerCase() === 'assistant_commissioner';
+        
+        // Check if user has Ag. C/PAP designation
+        const isAgCPAP = user?.has_ag_cpap_designation || false;
+        
+        // Check if user can approve/reject based on the new Ag. C/PAP only workflow
+        const canApproveReject = (
+          record.status === 'pending_approval' &&
+          record.closure_approval_stage !== 'none' &&
+          isAgCPAP
+        );
+        
+        return (
+          <Space>
+            <Button type="link" onClick={() => navigate(`/action-logs/${record.id}`)}>
+              View
             </Button>
-          )}
-          {Array.isArray(record.assigned_to) && record.assigned_to.includes(user.id) && (
-            <Button
-              type="link"
-              onClick={() => {
-                setSelectedLog(record);
-                setStatusModalVisible(true);
-              }}
-            >
-              Update Status
-            </Button>
-          )}
-          <Button
-            type="link"
-            onClick={() => handleViewComments(record.id)}
-          >
-            Comments
-          </Button>
-          {record.status === 'in_progress' && (
-            <>
-              <Button
-                type="link"
-                onClick={() => handleApprove(record.id)}
-              >
-                Approve
-              </Button>
-              <Button
-                type="link"
-                danger
+            {canAssign && (
+              <Button 
+                type="link" 
                 onClick={() => {
-                  Modal.confirm({
-                    title: 'Reject Action Log',
-                    content: (
-                      <Form>
-                        <Form.Item
-                          name="reason"
-                          rules={[{ required: true, message: 'Please enter a reason' }]}
-                        >
-                          <Input.TextArea placeholder="Enter rejection reason" />
-                        </Form.Item>
-                      </Form>
-                    ),
-                    onOk: (close) => {
-                      const form = Form.useForm()[0];
-                      form.validateFields().then(values => {
-                        handleReject(record.id, values.reason);
-                        close();
-                      });
-                    },
-                  });
+                  setSelectedLog(record);
+                  setAssignModalVisible(true);
                 }}
               >
-                Reject
+                Assign
               </Button>
-            </>
-          )}
-        </Space>
-      ),
+            )}
+            {Array.isArray(record.assigned_to) && record.assigned_to.includes(user.id) && (
+              <Button
+                type="link"
+                onClick={() => {
+                  setSelectedLog(record);
+                  setStatusModalVisible(true);
+                }}
+              >
+                Update Status
+              </Button>
+            )}
+            {canApproveReject && (
+              <>
+                <Button
+                  type="link"
+                  onClick={() => {
+                    setSelectedLog(record);
+                    setApprovalModalVisible(true);
+                  }}
+                >
+                  Approve
+                </Button>
+                <Button
+                  type="link"
+                  danger
+                  onClick={() => {
+                    setSelectedLog(record);
+                    setRejectModalVisible(true);
+                  }}
+                >
+                  Reject
+                </Button>
+              </>
+            )}
+            <Button
+              type="link"
+              onClick={() => handleViewComments(record.id)}
+            >
+              Comments
+            </Button>
+          </Space>
+        );
+      }
     },
   ];
 
@@ -484,6 +684,17 @@ const AssistantDashboard: React.FC = () => {
                 { label: 'Closed', value: 'closed' },
               ]}
             />
+            <Select
+              value={unitFilter}
+              onChange={setUnitFilter}
+              placeholder="Select Unit"
+              style={{ width: 150, marginRight: 8 }}
+            >
+              <Select.Option value="all">All Units</Select.Option>
+              {uniqueUnits.map(unit => (
+                <Select.Option key={unit.id} value={unit.id}>{unit.name}</Select.Option>
+              ))}
+            </Select>
             <Button
               type="primary"
               icon={<PlusOutlined />}
@@ -495,7 +706,7 @@ const AssistantDashboard: React.FC = () => {
 
           <Table
             columns={columns}
-            dataSource={actionLogs}
+            dataSource={getUnitFilteredLogs(getFilteredLogs())}
             loading={loading}
             rowKey="id"
           />
@@ -638,6 +849,58 @@ const AssistantDashboard: React.FC = () => {
               Add Comment
             </Button>
           </div>
+        </Modal>
+
+        <Modal
+          title="Approve Action Log"
+          open={approvalModalVisible}
+          onCancel={() => setApprovalModalVisible(false)}
+          onOk={() => approvalForm.submit()}
+          confirmLoading={approving}
+          footer={[
+            <Button key="back" onClick={() => setApprovalModalVisible(false)}>
+              Cancel
+            </Button>,
+            <Button key="submit" type="primary" loading={approving} onClick={() => approvalForm.submit()}>
+              Approve
+            </Button>,
+          ]}
+        >
+          <Form form={approvalForm} onFinish={handleApprove} layout="vertical">
+            <Form.Item
+              name="comment"
+              label="Comment"
+              rules={[{ required: true, message: 'Please enter a comment' }]}
+            >
+              <Input.TextArea />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title="Reject Action Log"
+          open={rejectModalVisible}
+          onCancel={() => setRejectModalVisible(false)}
+          onOk={() => rejectForm.submit()}
+          confirmLoading={rejecting}
+          footer={[
+            <Button key="back" onClick={() => setRejectModalVisible(false)}>
+              Cancel
+            </Button>,
+            <Button key="submit" type="primary" loading={rejecting} onClick={() => rejectForm.submit()}>
+              Reject
+            </Button>,
+          ]}
+        >
+          <Form form={rejectForm} onFinish={handleReject} layout="vertical">
+            <Form.Item
+              name="reason"
+              label="Reason"
+              rules={[{ required: true, message: 'Please enter a reason' }]}
+            >
+              <Input.TextArea />
+            </Form.Item>
+          </Form>
         </Modal>
       </Content>
     </Layout>
