@@ -6,8 +6,8 @@ import { userService } from '../../../services/userService';
 import { delegationService, Delegation, CreateDelegationRequest } from '../../../services/delegationService';
 import { ActionLog, ActionLogStatus, ActionLogUpdate, CreateActionLogData, ActionLogPriority, ApprovalStatus, ActionLogComment } from '../../../types/actionLog';
 import { Department, DepartmentUnit } from '../../../types/department';
-import { Button, Card, Table, Modal, Form, Input, message, Space, Tag, Select, DatePicker, Layout, Menu, Avatar, Tooltip, Timeline, Spin, Badge, Tabs, Upload, List, Descriptions, Divider, Dropdown } from 'antd';
-import { PlusOutlined, CheckOutlined, FilterOutlined, UserAddOutlined, UserOutlined, FileTextOutlined, FormOutlined, TeamOutlined, SettingOutlined, ClockCircleOutlined, CalendarOutlined, CommentOutlined, ClusterOutlined, UploadOutlined, EyeOutlined, UserSwitchOutlined, EditOutlined, CheckCircleOutlined, CloseOutlined, DownloadOutlined, MessageOutlined, DeleteOutlined, ExclamationCircleOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { Button, Card, Table, Modal, Form, Input, message, Space, Tag, Select, DatePicker, Layout, Menu, Avatar, Tooltip, Timeline, Spin, Badge, Tabs, Upload, List, Descriptions, Divider, Dropdown, Statistic, Row, Col, Progress } from 'antd';
+import { PlusOutlined, CheckOutlined, FilterOutlined, UserAddOutlined, UserOutlined, FileTextOutlined, FormOutlined, TeamOutlined, SettingOutlined, ClockCircleOutlined, CalendarOutlined, CommentOutlined, ClusterOutlined, UploadOutlined, EyeOutlined, UserSwitchOutlined, EditOutlined, CheckCircleOutlined, CloseOutlined, DownloadOutlined, MessageOutlined, DeleteOutlined, ExclamationCircleOutlined, InfoCircleOutlined, DashboardOutlined } from '@ant-design/icons';
 import { format, differenceInDays, isPast, isToday } from 'date-fns';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { User } from '../../../types/user';
@@ -94,7 +94,7 @@ const EconomistDashboard: React.FC = () => {
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
-  const [selectedMenuKey, setSelectedMenuKey] = useState('assignedToMe');
+  const [selectedMenuKey, setSelectedMenuKey] = useState('dashboard');
   const [showAssignedOnly, setShowAssignedOnly] = useState(false);
   const [showPendingApproval, setShowPendingApproval] = useState(false);
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
@@ -226,16 +226,16 @@ const EconomistDashboard: React.FC = () => {
 
   // On mount, set initial navigation based on user designation
   useEffect(() => {
+    // Dashboard is the default view, so we don't need to change selectedMenuKey
+    // Just set the filter states based on user designation for when they navigate to action logs
     if (isAgCPAP) {
       // Ag. C/PAP users should see pending approval logs since no one assigns to them
       setShowPendingApproval(true);
       setShowAssignedOnly(false);
-      setSelectedMenuKey('pendingApproval');
     } else {
       // Regular users should see assigned logs
       setShowAssignedOnly(true);
       setShowPendingApproval(false);
-      setSelectedMenuKey('assignedToMe');
     }
     setStatusFilter('');
   }, [isAgCPAP]);
@@ -2095,7 +2095,10 @@ const EconomistDashboard: React.FC = () => {
 
   const handleMenuClick = (e: any) => {
     setSelectedMenuKey(e.key);
-    if (e.key === 'createActionLog') {
+    if (e.key === 'dashboard') {
+      setShowAssignedOnly(false);
+      setShowPendingApproval(false);
+    } else if (e.key === 'createActionLog') {
       setCreateModalVisible(true);
     } else if (e.key === 'assignedToMe') {
       setShowAssignedOnly(true);
@@ -2122,6 +2125,11 @@ const EconomistDashboard: React.FC = () => {
   };
 
   const menuItems = [
+    {
+      key: 'dashboard',
+      icon: <DashboardOutlined />,
+      label: 'Dashboard',
+    },
     {
       key: 'actionLogs',
       icon: <FileTextOutlined />,
@@ -2572,6 +2580,426 @@ const EconomistDashboard: React.FC = () => {
           </Form.Item>
         </Form>
       </Modal>
+    );
+  };
+
+  const renderDashboard = () => {
+    const totalLogs = actionLogs.length;
+    const completedLogs = actionLogs.filter(log => log.status === 'closed').length;
+    const pendingLogs = actionLogs.filter(log => log.status === 'pending_approval').length;
+    const inProgressLogs = actionLogs.filter(log => log.status === 'in_progress').length;
+    const overdueLogs = actionLogs.filter(log => {
+      if (!log.due_date) return false;
+      const dueDate = new Date(log.due_date);
+      return isPast(dueDate) && log.status !== 'closed';
+    }).length;
+
+    const completionRate = totalLogs > 0 ? Math.round((completedLogs / totalLogs) * 100) : 0;
+    const overdueRate = totalLogs > 0 ? Math.round((overdueLogs / totalLogs) * 100) : 0;
+
+    // Status distribution
+    const statusData = [
+      { status: 'Completed', count: completedLogs, color: '#52c41a' },
+      { status: 'In Progress', count: inProgressLogs, color: '#1890ff' },
+      { status: 'Pending', count: pendingLogs, color: '#faad14' },
+      { status: 'Overdue', count: overdueLogs, color: '#ff4d4f' },
+    ];
+
+    // Priority distribution
+    const priorityData = actionLogs.reduce((acc, log) => {
+      const priority = log.priority || 'Medium';
+      acc[priority] = (acc[priority] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Department distribution
+    const departmentData = actionLogs.reduce((acc, log) => {
+      const dept = log.department?.name || 'Unknown';
+      acc[dept] = (acc[dept] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Department Unit distribution (PAS, IN, All Units)
+    const unitData = actionLogs.reduce((acc, log) => {
+      // Get the unit from assigned users
+      const assignedUsers = log.assigned_to?.map(id => users.find(u => u.id === id)).filter(Boolean) || [];
+      const units = assignedUsers.map(user => user?.department_unit?.name).filter(Boolean);
+      
+      // Categorize units
+      units.forEach(unitName => {
+        if (unitName?.includes('PAS')) {
+          acc['PAS'] = (acc['PAS'] || 0) + 1;
+        } else if (unitName?.includes('IN')) {
+          acc['IN'] = (acc['IN'] || 0) + 1;
+        } else {
+          acc['Other Units'] = (acc['Other Units'] || 0) + 1;
+        }
+      });
+      
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Response time analytics for each unit
+    const calculateResponseTime = (log: ActionLog) => {
+      if (!log.due_date || log.status === 'open') return null;
+      
+      const createdDate = new Date(log.created_at);
+      const dueDate = new Date(log.due_date);
+      const completedDate = log.status === 'closed' ? new Date(log.updated_at) : new Date();
+      
+      const totalDays = differenceInDays(dueDate, createdDate);
+      const daysUsed = differenceInDays(completedDate, createdDate);
+      
+      return {
+        totalDays,
+        daysUsed,
+        isOnTime: daysUsed <= totalDays,
+        responseRate: totalDays > 0 ? Math.round((daysUsed / totalDays) * 100) : 0
+      };
+    };
+
+    // Unit response time data
+    const unitResponseData = actionLogs.reduce((acc, log) => {
+      const responseTime = calculateResponseTime(log);
+      if (!responseTime) return acc;
+
+      const assignedUsers = log.assigned_to?.map(id => users.find(u => u.id === id)).filter(Boolean) || [];
+      const units = assignedUsers.map(user => user?.department_unit?.name).filter(Boolean);
+      
+      units.forEach(unitName => {
+        let unitKey = 'Other Units';
+        if (unitName?.includes('PAS')) {
+          unitKey = 'PAS';
+        } else if (unitName?.includes('IN')) {
+          unitKey = 'IN';
+        }
+
+        if (!acc[unitKey]) {
+          acc[unitKey] = {
+            total: 0,
+            onTime: 0,
+            overdue: 0,
+            avgResponseRate: 0,
+            totalResponseRate: 0
+          };
+        }
+
+        acc[unitKey].total += 1;
+        if (responseTime.isOnTime) {
+          acc[unitKey].onTime += 1;
+        } else {
+          acc[unitKey].overdue += 1;
+        }
+        acc[unitKey].totalResponseRate += responseTime.responseRate;
+      });
+      
+      return acc;
+    }, {} as Record<string, { total: number; onTime: number; overdue: number; avgResponseRate: number; totalResponseRate: number }>);
+
+    // Calculate average response rates
+    Object.keys(unitResponseData).forEach(unit => {
+      const data = unitResponseData[unit];
+      data.avgResponseRate = data.total > 0 ? Math.round(data.totalResponseRate / data.total) : 0;
+    });
+
+    return (
+      <div style={{ padding: '24px' }}>
+        <h1 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '24px', color: '#1890ff' }}>
+          <DashboardOutlined style={{ marginRight: '12px' }} />
+          Action Logs Analytics Dashboard
+        </h1>
+        
+        {/* Key Metrics Row */}
+        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Total Action Logs"
+                value={totalLogs}
+                valueStyle={{ color: '#1890ff' }}
+                prefix={<FileTextOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Completed"
+                value={completedLogs}
+                valueStyle={{ color: '#52c41a' }}
+                prefix={<CheckCircleOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="In Progress"
+                value={inProgressLogs}
+                valueStyle={{ color: '#1890ff' }}
+                prefix={<ClockCircleOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            <Card>
+              <Statistic
+                title="Overdue"
+                value={overdueLogs}
+                valueStyle={{ color: '#ff4d4f' }}
+                prefix={<ExclamationCircleOutlined />}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Progress Indicators Row */}
+        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+          <Col xs={24} md={12}>
+            <Card title="Completion Rate" size="small">
+              <Progress
+                type="circle"
+                percent={completionRate}
+                strokeColor="#52c41a"
+                format={percent => `${percent}%`}
+              />
+              <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                {completedLogs} of {totalLogs} logs completed
+              </div>
+            </Card>
+          </Col>
+          <Col xs={24} md={12}>
+            <Card title="Overdue Rate" size="small">
+              <Progress
+                type="circle"
+                percent={overdueRate}
+                strokeColor="#ff4d4f"
+                format={percent => `${percent}%`}
+              />
+              <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                {overdueLogs} of {totalLogs} logs overdue
+              </div>
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Status Distribution */}
+        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+          <Col xs={24} lg={12}>
+            <Card title="Status Distribution" size="small">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {statusData.map(({ status, count, color }) => (
+                  <div key={status} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <div style={{ width: '12px', height: '12px', backgroundColor: color, borderRadius: '50%', marginRight: '8px' }} />
+                      <span>{status}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 'bold' }}>{count}</span>
+                      <Progress
+                        percent={totalLogs > 0 ? Math.round((count / totalLogs) * 100) : 0}
+                        showInfo={false}
+                        strokeColor={color}
+                        size="small"
+                        style={{ width: '100px' }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </Col>
+          <Col xs={24} lg={12}>
+            <Card title="Priority Distribution" size="small">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {Object.entries(priorityData).map(([priority, count]) => {
+                  const color = priority === 'High' ? '#ff4d4f' : priority === 'Medium' ? '#faad14' : '#52c41a';
+                  return (
+                    <div key={priority} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <div style={{ width: '12px', height: '12px', backgroundColor: color, borderRadius: '50%', marginRight: '8px' }} />
+                        <span>{priority} Priority</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 'bold' }}>{count}</span>
+                        <Progress
+                          percent={totalLogs > 0 ? Math.round((count / totalLogs) * 100) : 0}
+                          showInfo={false}
+                          strokeColor={color}
+                          size="small"
+                          style={{ width: '100px' }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Department Distribution */}
+        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+          <Col xs={24}>
+            <Card title="Department Distribution" size="small">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {Object.entries(departmentData)
+                  .sort(([,a], [,b]) => b - a)
+                  .slice(0, 10)
+                  .map(([department, count]) => (
+                    <div key={department} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <ClusterOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+                        <span>{department}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 'bold' }}>{count}</span>
+                        <Progress
+                          percent={totalLogs > 0 ? Math.round((count / totalLogs) * 100) : 0}
+                          showInfo={false}
+                          strokeColor="#1890ff"
+                          size="small"
+                          style={{ width: '150px' }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Department Unit Distribution */}
+        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+          <Col xs={24} lg={12}>
+            <Card title="Department Unit Distribution" size="small">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {Object.entries(unitData)
+                  .sort(([,a], [,b]) => b - a)
+                  .map(([unit, count]) => {
+                    const color = unit === 'PAS' ? '#52c41a' : unit === 'IN' ? '#1890ff' : '#faad14';
+                    return (
+                      <div key={unit} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <div style={{ width: '12px', height: '12px', backgroundColor: color, borderRadius: '50%', marginRight: '8px' }} />
+                          <span style={{ fontWeight: '500' }}>{unit}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 'bold' }}>{count}</span>
+                          <Progress
+                            percent={totalLogs > 0 ? Math.round((count / totalLogs) * 100) : 0}
+                            showInfo={false}
+                            strokeColor={color}
+                            size="small"
+                            style={{ width: '100px' }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </Card>
+          </Col>
+          <Col xs={24} lg={12}>
+            <Card title="Unit Performance Overview" size="small">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {Object.entries(unitResponseData).map(([unit, data]) => {
+                  const onTimeRate = data.total > 0 ? Math.round((data.onTime / data.total) * 100) : 0;
+                  const color = unit === 'PAS' ? '#52c41a' : unit === 'IN' ? '#1890ff' : '#faad14';
+                  
+                  return (
+                    <div key={unit} style={{ padding: '12px', border: '1px solid #f0f0f0', borderRadius: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <div style={{ width: '10px', height: '10px', backgroundColor: color, borderRadius: '50%', marginRight: '6px' }} />
+                          <span style={{ fontWeight: '600' }}>{unit}</span>
+                        </div>
+                        <span style={{ fontSize: '12px', color: '#666' }}>{data.total} logs</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                        <span>On Time: {data.onTime}</span>
+                        <span>Overdue: {data.overdue}</span>
+                      </div>
+                      <Progress
+                        percent={onTimeRate}
+                        strokeColor={color}
+                        size="small"
+                        format={percent => `${percent}% on time`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </Col>
+        </Row>
+
+        {/* Unit Response Time Analytics */}
+        <Row gutter={[16, 16]}>
+          <Col xs={24}>
+            <Card title="Unit Response Time Analytics" size="small">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {Object.entries(unitResponseData).map(([unit, data]) => {
+                  const onTimeRate = data.total > 0 ? Math.round((data.onTime / data.total) * 100) : 0;
+                  const color = unit === 'PAS' ? '#52c41a' : unit === 'IN' ? '#1890ff' : '#faad14';
+                  
+                  return (
+                    <div key={unit} style={{ 
+                      padding: '16px', 
+                      border: '1px solid #f0f0f0', 
+                      borderRadius: '8px',
+                      backgroundColor: '#fafafa'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <div style={{ width: '12px', height: '12px', backgroundColor: color, borderRadius: '50%', marginRight: '8px' }} />
+                          <span style={{ fontWeight: '600', fontSize: '16px' }}>{unit} Unit</span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '16px', fontSize: '14px' }}>
+                          <span>Total: <strong>{data.total}</strong></span>
+                          <span>On Time: <strong style={{ color: '#52c41a' }}>{data.onTime}</strong></span>
+                          <span>Overdue: <strong style={{ color: '#ff4d4f' }}>{data.overdue}</strong></span>
+                        </div>
+                      </div>
+                      
+                      <Row gutter={[16, 16]}>
+                        <Col xs={24} sm={8}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: color }}>
+                              {onTimeRate}%
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>On Time Rate</div>
+                          </div>
+                        </Col>
+                        <Col xs={24} sm={8}>
+                          <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1890ff' }}>
+                              {data.avgResponseRate}%
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>Avg Response Rate</div>
+                          </div>
+                        </Col>
+                        <Col xs={24} sm={8}>
+                          <div style={{ textAlign: 'center' }}>
+                            <Progress
+                              type="circle"
+                              percent={onTimeRate}
+                              strokeColor={color}
+                              size={60}
+                              format={percent => `${percent}%`}
+                            />
+                            <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>Performance</div>
+                          </div>
+                        </Col>
+                      </Row>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </Col>
+        </Row>
+      </div>
     );
   };
 
@@ -3182,7 +3610,9 @@ const EconomistDashboard: React.FC = () => {
       </Sider>
       <Layout style={{ marginLeft: 200, minHeight: '100vh' }}>
         <Content style={{ padding: 24, minHeight: 280, background: '#fff' }}>
-          {selectedMenuKey === 'delegations' ? (
+          {selectedMenuKey === 'dashboard' ? (
+            renderDashboard()
+          ) : selectedMenuKey === 'delegations' ? (
             renderDelegationTable()
           ) : (
             <Card
