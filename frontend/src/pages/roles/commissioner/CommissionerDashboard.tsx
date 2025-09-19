@@ -339,7 +339,7 @@ const CommissionerDashboard: React.FC = () => {
       const searchLower = search.toLowerCase();
       filteredLogs = filteredLogs.filter(log => 
         log.title.toLowerCase().includes(searchLower) ||
-        log.description.toLowerCase().includes(searchLower)
+        (log.description && log.description.toLowerCase().includes(searchLower))
       );
       console.log('[COMMISSIONER_DASHBOARD] getFilteredLogs: After search filter,', filteredLogs.length, 'logs remaining');
     }
@@ -676,6 +676,15 @@ const CommissionerDashboard: React.FC = () => {
                   onClick={() => {
                     setSelectedLog(record);
                     setApprovalModalVisible(true);
+                  }}
+                  style={{
+                    transition: 'all 0.3s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#52c41a';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#1890ff';
                   }}
                 >
                   Approve

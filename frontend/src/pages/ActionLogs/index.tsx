@@ -121,7 +121,7 @@ const ActionLogs = () => {
   const filteredLogs = actionLogs.filter(log => {
     const matchesSearch =
       log.title.toLowerCase().includes(search.toLowerCase()) ||
-      log.description.toLowerCase().includes(search.toLowerCase());
+      (log.description && log.description.toLowerCase().includes(search.toLowerCase()));
     const matchesStatus = statusFilter ? log.status === statusFilter : true;
     return matchesSearch && matchesStatus;
   });

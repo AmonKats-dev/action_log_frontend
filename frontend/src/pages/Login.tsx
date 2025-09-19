@@ -354,10 +354,10 @@ const Login: React.FC = () => {
   const testCredentials = [
     { phone: '+256782939854', username: 'commissioner', role: 'Ag. C/PAP' },
     { phone: '+256782190304', username: 'assistant_commissioner', role: 'Ag. AC/PAP'},
-    { phone: '+256759977619', username: 'in_head', role: 'IN Head' },
-    { phone: '+256701732727', username: 'in_staff2', role: 'IN Staff' },
-    { phone: '+256775212880', username: 'pas_head', role: 'PAS Head' },
-    { phone: '+256756250308', username: 'pas_staff3', role: 'PAS3/PAP' }
+    { phone: '+256759977619', username: 'in_head', role: 'IN1' },
+    { phone: '+256701732727', username: 'in_staff2', role: 'IN2' },
+    { phone: '+256775212880', username: 'pas_head', role: 'PAS1' },
+    { phone: '+256756250308', username: 'pas_staff4', role: 'PAS4' }
   ];
 
   useEffect(() => {
@@ -496,85 +496,85 @@ const Login: React.FC = () => {
         
         <RightPanel>
           <FormContainer>
+            {/* Header Content - Logo, Title, and Department - Always visible */}
+            <div style={{ 
+              marginBottom: '15px', 
+              padding: '25px 20px', 
+              background: 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)',
+              color: 'white',
+              borderRadius: '8px',
+              textAlign: 'center',
+              position: 'relative'
+            }}>
+              {/* Floating decorative elements */}
+              <div style={{
+                content: '',
+                position: 'absolute',
+                top: '-30px',
+                left: '-30px',
+                width: '60px',
+                height: '60px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '50%',
+                animation: 'float 6s ease-in-out infinite'
+              }}></div>
+              <div style={{
+                content: '',
+                position: 'absolute',
+                bottom: '-20px',
+                right: '-20px',
+                width: '50px',
+                height: '50px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                borderRadius: '50%',
+                animation: 'float 4s ease-in-out infinite reverse'
+              }}></div>
+              
+              <div style={{ 
+                width: '60px', 
+                height: '60px', 
+                margin: '0 auto 15px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                zIndex: 2
+              }}>
+                <img 
+                  src="/Mofped_logo.png" 
+                  alt="MOFPED Logo"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    borderRadius: '12px'
+                  }}
+                />
+              </div>
+              <h1 style={{ 
+                margin: '0 0 6px 0', 
+                fontSize: '20px', 
+                color: 'white',
+                fontWeight: '700',
+                position: 'relative',
+                zIndex: 2
+              }}>
+                PAP Action Log
+              </h1>
+              <p style={{ 
+                margin: '0', 
+                fontSize: '13px', 
+                opacity: 0.9,
+                lineHeight: '1.3',
+                position: 'relative',
+                zIndex: 2
+              }}>
+                Projects Analysis & Public Investment Department
+              </p>
+            </div>
+
             {!isCodeSent ? (
               <form onSubmit={handleSendCode}>
-                {/* Header Content - Logo, Title, and Department */}
-                <div style={{ 
-                  marginBottom: '15px', 
-                  padding: '25px 20px', 
-                  background: 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)',
-                  color: 'white',
-                  borderRadius: '8px',
-                  textAlign: 'center',
-                  position: 'relative'
-                }}>
-                  {/* Floating decorative elements */}
-                  <div style={{
-                    content: '',
-                    position: 'absolute',
-                    top: '-30px',
-                    left: '-30px',
-                    width: '60px',
-                    height: '60px',
-                    background: 'rgba(255, 255, 255, 0.1)',
-                    borderRadius: '50%',
-                    animation: 'float 6s ease-in-out infinite'
-                  }}></div>
-                  <div style={{
-                    content: '',
-                    position: 'absolute',
-                    bottom: '-20px',
-                    right: '-20px',
-                    width: '50px',
-                    height: '50px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    borderRadius: '50%',
-                    animation: 'float 4s ease-in-out infinite reverse'
-                  }}></div>
-                  
-                  <div style={{ 
-                    width: '60px', 
-                    height: '60px', 
-                    margin: '0 auto 15px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    position: 'relative',
-                    zIndex: 2
-                  }}>
-                    <img 
-                      src="/Mofped_logo.png" 
-                      alt="MOFPED Logo"
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'contain',
-                        borderRadius: '12px'
-                      }}
-                    />
-                  </div>
-                  <h1 style={{ 
-                    margin: '0 0 6px 0', 
-                    fontSize: '20px', 
-                    color: 'white',
-                    fontWeight: '700',
-                    position: 'relative',
-                    zIndex: 2
-                  }}>
-                    Action Log
-                  </h1>
-                  <p style={{ 
-                    margin: '0', 
-                    fontSize: '13px', 
-                    opacity: 0.9,
-                    lineHeight: '1.3',
-                    position: 'relative',
-                    zIndex: 2
-                  }}>
-                    Projects Analysis & Public Investment Department
-                  </p>
-                </div>
-
                 <FormGroup>
                   <InputContainer>
                     <InputIcon>📱</InputIcon>
@@ -623,7 +623,7 @@ const Login: React.FC = () => {
                     textAlign: 'center'
                   }}>
                     <div style={{ fontSize: '14px', color: '#856404', marginBottom: '8px' }}>
-                      🧪 Test Mode - Your Code:
+                      🧪 Test Mode - Copy Your Code:
                     </div>
                     <div style={{ 
                       fontSize: '24px', 
