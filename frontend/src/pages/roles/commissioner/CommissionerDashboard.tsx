@@ -38,7 +38,7 @@ const CommissionerDashboard: React.FC = () => {
   const [assignForm] = Form.useForm();
   const [statusForm] = Form.useForm();
   const [delegationForm] = Form.useForm();
-  const [unitFilter, setUnitFilter] = useState<'all' | number>('all');
+  const [unitFilter, setUnitFilter] = useState<'all' | string>('all');
   const [approvalModalVisible, setApprovalModalVisible] = useState(false);
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [approving, setApproving] = useState(false);
@@ -407,8 +407,8 @@ const CommissionerDashboard: React.FC = () => {
       // Check if any of the assigned users belong to the selected unit
       const hasUserInSelectedUnit = log.assigned_to?.some(assigneeId => {
         const assignee = users.find(u => u.id === assigneeId);
-        const assigneeUnitId = assignee?.department_unit?.id;
-        return assigneeUnitId === unitFilter;
+        const assigneeUnitName = assignee?.department_unit?.name;
+        return assigneeUnitName === unitFilter;
       });
 
       // Check if this log is pending unit head approval for the current unit
@@ -765,9 +765,8 @@ const CommissionerDashboard: React.FC = () => {
                 style={{ width: 150, marginRight: 8 }}
               >
                 <Select.Option value="all">All Units</Select.Option>
-                {uniqueUnits.map(unit => (
-                  <Select.Option key={unit.id} value={unit.id}>{unit.name}</Select.Option>
-                ))}
+                <Select.Option value="IN">IN</Select.Option>
+                <Select.Option value="PAS">PAS</Select.Option>
               </Select>
               <Button
                 type="primary"

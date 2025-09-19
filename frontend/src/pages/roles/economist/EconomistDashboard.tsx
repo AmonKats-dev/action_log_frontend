@@ -130,7 +130,7 @@ const EconomistDashboard: React.FC = () => {
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   // State for unit filter
-  const [unitFilter, setUnitFilter] = useState<'all' | number>(user?.department_unit?.id || 'all');
+  const [unitFilter, setUnitFilter] = useState<'all' | string | number>('all');
   
   // Delegation state variables
   const [delegations, setDelegations] = useState<Delegation[]>([]);
@@ -180,11 +180,12 @@ const EconomistDashboard: React.FC = () => {
   const isCommissioner = userRoleName.includes('commissioner');
 
   // Ensure unitFilter updates when user loads
+  // Only set unitFilter for non-Ag. C/PAP users (they use hardcoded options)
   useEffect(() => {
-    if (user?.department_unit?.id) {
+    if (user?.department_unit?.id && !isAgCPAP && !isAgACpap) {
       setUnitFilter(user.department_unit.id);
     }
-  }, [user]);
+  }, [user, isAgCPAP, isAgACpap]);
 
   useEffect(() => {
     const initializeData = async () => {
@@ -2330,8 +2331,16 @@ const EconomistDashboard: React.FC = () => {
       // Check if any of the assigned users belong to the selected unit
       const hasUserInSelectedUnit = log.assigned_to?.some(assigneeId => {
         const assignee = users.find(u => u.id === assigneeId);
+        const assigneeUnitName = assignee?.department_unit?.name;
         const assigneeUnitId = assignee?.department_unit?.id;
-        return assigneeUnitId === unitFilter;
+        
+        // For Ag. C/PAP and Ag. AC/PAP users, compare by unit name (string)
+        // For other users, compare by unit ID (number)
+        if (isAgCPAP || isAgACpap) {
+          return assigneeUnitName === unitFilter;
+        } else {
+          return assigneeUnitId === unitFilter;
+        }
       });
 
       // Check if this log is pending unit head approval for the current unit
@@ -3228,9 +3237,18 @@ const EconomistDashboard: React.FC = () => {
                     style={{ width: 150, marginRight: 8 }}
                   >
                     <Select.Option value="all">All Units</Select.Option>
-                    {uniqueUnits.map(unit => (
-                      <Select.Option key={unit.id} value={unit.id}>{unit.name}</Select.Option>
-                    ))}
+                    {(isAgCPAP || isAgACpap) ? (
+                      // Ag. C/PAP and Ag. AC/PAP users see hardcoded options
+                      <>
+                        <Select.Option value="IN">IN</Select.Option>
+                        <Select.Option value="PAS">PAS</Select.Option>
+                      </>
+                    ) : (
+                      // Other users see dynamic unit options
+                      uniqueUnits.map(unit => (
+                        <Select.Option key={unit.id} value={unit.id}>{unit.name}</Select.Option>
+                      ))
+                    )}
                   </Select>
                   <Dropdown
                     menu={{
