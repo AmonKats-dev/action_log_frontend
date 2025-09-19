@@ -122,6 +122,17 @@ const ActionLogs = () => {
                 type="primary"
                 icon={<CheckOutlined />}
                 onClick={() => handleApprove(record)}
+                style={{
+                  transition: 'all 0.3s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#52c41a';
+                  e.currentTarget.style.borderColor = '#52c41a';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#1890ff';
+                  e.currentTarget.style.borderColor = '#1890ff';
+                }}
               >
                 Approve
               </Button>

@@ -28,7 +28,7 @@ export interface DelegationResponse {
 class DelegationService {
   async getAll(): Promise<Delegation[]> {
     try {
-      const response = await api.get('/delegations/');
+      const response = await api.get('/users/delegations/');
       return response.data;
     } catch (error) {
       console.error('Error fetching delegations:', error);
@@ -38,7 +38,7 @@ class DelegationService {
 
   async create(delegationData: CreateDelegationRequest): Promise<Delegation> {
     try {
-      const response = await api.post('/delegations/', delegationData);
+      const response = await api.post('/users/delegations/', delegationData);
       return response.data;
     } catch (error) {
       console.error('Error creating delegation:', error);
@@ -48,7 +48,7 @@ class DelegationService {
 
   async revoke(delegationId: number): Promise<void> {
     try {
-      await api.delete(`/delegations/${delegationId}/`);
+      await api.post(`/users/delegations/${delegationId}/revoke/`);
     } catch (error) {
       console.error('Error revoking delegation:', error);
       throw error;
@@ -57,7 +57,7 @@ class DelegationService {
 
   async getById(delegationId: number): Promise<Delegation> {
     try {
-      const response = await api.get(`/delegations/${delegationId}/`);
+      const response = await api.get(`/users/delegations/${delegationId}/`);
       return response.data;
     } catch (error) {
       console.error('Error fetching delegation:', error);
@@ -67,10 +67,20 @@ class DelegationService {
 
   async update(delegationId: number, delegationData: Partial<CreateDelegationRequest>): Promise<Delegation> {
     try {
-      const response = await api.put(`/delegations/${delegationId}/`, delegationData);
+      const response = await api.put(`/users/delegations/${delegationId}/`, delegationData);
       return response.data;
     } catch (error) {
       console.error('Error updating delegation:', error);
+      throw error;
+    }
+  }
+
+  async getMyDelegations(): Promise<Delegation[]> {
+    try {
+      const response = await api.get('/users/delegations/my_delegations/');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching my delegations:', error);
       throw error;
     }
   }

@@ -167,6 +167,7 @@ const EconomistDashboard: React.FC = () => {
     isAgCPAP: isAgCPAP,
     isAgACpap: isAgACpap,
     canManageDelegations: canManageDelegations,
+    userObject: user,
     backendChecks: {
       has_ag_cpap_designation: user?.has_ag_cpap_designation,
       has_ag_acpap_designation: user?.has_ag_acpap_designation,
@@ -1139,9 +1140,24 @@ const EconomistDashboard: React.FC = () => {
     // If "Pending Approval" is selected, show logs that need approval
     // CORRECTED FLOW: Show only logs with "pending approval" status that Ag. C/PAP users can approve/reject
     if (showPendingApproval) {
+      console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: Before pending approval filter, checking logs:', filteredLogs.map(log => ({
+        id: log.id,
+        title: log.title,
+        status: log.status,
+        closure_approval_stage: log.closure_approval_stage
+      })));
+      
       filteredLogs = filteredLogs.filter(log => {
         // Show logs that are pending approval (these are what Ag. C/PAP users approve/reject)
         const isPendingApproval = log.status === 'pending_approval' && log.closure_approval_stage !== 'none';
+        
+        console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: Checking log for pending approval:', {
+          id: log.id,
+          title: log.title,
+          status: log.status,
+          closure_approval_stage: log.closure_approval_stage,
+          isPendingApproval
+        });
         
         return isPendingApproval;
       });
@@ -1153,7 +1169,7 @@ const EconomistDashboard: React.FC = () => {
       const searchLower = search.toLowerCase();
       filteredLogs = filteredLogs.filter(log => 
         log.title.toLowerCase().includes(searchLower) ||
-        log.description.toLowerCase().includes(searchLower)
+        (log.description && log.description.toLowerCase().includes(searchLower))
       );
       console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: After search filter,', filteredLogs.length, 'logs remaining');
     }
@@ -2023,6 +2039,17 @@ const EconomistDashboard: React.FC = () => {
                     onClick={() => {
                       setSelectedLog(record);
                       setApprovalModalVisible(true);
+                    }}
+                    style={{
+                      transition: 'all 0.3s ease',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#52c41a';
+                      e.currentTarget.style.borderColor = '#52c41a';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#1890ff';
+                      e.currentTarget.style.borderColor = '#1890ff';
                     }}
                   />
                 </Tooltip>
@@ -3187,13 +3214,13 @@ const EconomistDashboard: React.FC = () => {
                     </Button>
                   )}
 
-                  {user && (
+                  {/* Delegation Status - Hidden but logic maintained */}
+                  {/* {user && (
                     <DelegationStatus 
-                      hasActiveDelegation={user.has_active_delegation}
-                      canCreateActionLogs={user.can_create_action_logs}
-                      userDesignation={user.designation}
+                      delegation={user.has_active_delegation}
+                      showDetails={true}
                     />
-                  )}
+                  )} */}
                   <Select
                     value={unitFilter}
                     onChange={setUnitFilter}

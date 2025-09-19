@@ -498,7 +498,7 @@ const Dashboard: React.FC = () => {
     ? actionLogs.filter(log => {
         const matchesSearch =
           log.title.toLowerCase().includes(search.toLowerCase()) ||
-          log.description.toLowerCase().includes(search.toLowerCase());
+          (log.description && log.description.toLowerCase().includes(search.toLowerCase()));
         const matchesStatus = statusFilter ? log.status === statusFilter : true;
         return matchesSearch && matchesStatus;
       })
@@ -788,7 +788,14 @@ const Dashboard: React.FC = () => {
                 style={{
                   padding: 0,
                   height: 'auto',
-                  fontSize: '13px'
+                  fontSize: '13px',
+                  transition: 'all 0.3s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#52c41a';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#1890ff';
                 }}
               >
                 Approve
