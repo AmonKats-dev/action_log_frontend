@@ -1,9 +1,19 @@
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 html, body, #root {
   height: 100%;
   width: 100%;
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+  }
 }
 
 body {
@@ -27,6 +37,47 @@ body {
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
+}
+
+@media (max-width: 768px) {
+  h1 {
+    font-size: 2em;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 1.6em;
+  }
+}
+
+/* Action Logs page - responsive card and table */
+.action-logs-page .ant-card-head {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.action-logs-page .ant-card-head-title {
+  flex: 1 1 auto;
+}
+.action-logs-page .ant-card-extra {
+  flex: 1 1 100%;
+}
+@media (min-width: 576px) {
+  .action-logs-page .ant-card-extra {
+    flex: 0 0 auto;
+  }
+}
+.action-logs-create-btn {
+  width: 100%;
+}
+@media (min-width: 576px) {
+  .action-logs-create-btn {
+    width: auto;
+  }
+}
+.action-logs-table .ant-table-cell {
+  white-space: normal;
+  word-break: break-word;
 }
 
 a {

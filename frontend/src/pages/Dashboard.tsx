@@ -70,6 +70,7 @@ const Dashboard: React.FC = () => {
     const saved = localStorage.getItem('readComments');
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
+  const [siderCollapsed, setSiderCollapsed] = useState(false);
 
   // Save read comments to localStorage whenever it changes
   useEffect(() => {
@@ -860,7 +861,14 @@ const Dashboard: React.FC = () => {
 
   return (
     <Layout style={{ minHeight: '100vh', height: '100vh', overflow: 'hidden' }}>
-      <Sider width={240} style={{ background: '#fff', boxShadow: '2px 0 8px #f0f1f2' }}>
+      <Sider
+        width={240}
+        breakpoint="lg"
+        collapsed={siderCollapsed}
+        onBreakpoint={setSiderCollapsed}
+        collapsedWidth={80}
+        style={{ background: '#fff', boxShadow: '2px 0 8px #f0f1f2' }}
+      >
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 0 16px 0' }}>
           <Avatar size={64} icon={<UserOutlined />} style={{ marginBottom: 12 }} />
           <div style={{ fontWeight: 500, fontSize: 14, color: '#888', marginBottom: 4 }}>Logged in as:</div>

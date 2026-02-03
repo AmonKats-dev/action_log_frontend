@@ -167,7 +167,7 @@ const ActionLogs = () => {
   ];
 
   return (
-    <div>
+    <div className="action-logs-page">
       <Card
         title="Action Logs"
         extra={
@@ -175,16 +175,20 @@ const ActionLogs = () => {
             type="primary"
             icon={<PlusOutlined />}
             onClick={() => setCreateModalVisible(true)}
+            className="action-logs-create-btn"
           >
             Create Action Log
           </Button>
         }
+        className="action-logs-card"
       >
         <Table
           columns={columns}
           dataSource={actionLogs}
           loading={loading}
           rowKey="id"
+          scroll={{ x: 'max-content' }}
+          className="action-logs-table"
         />
       </Card>
 

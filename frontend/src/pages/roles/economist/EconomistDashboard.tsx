@@ -118,6 +118,7 @@ const EconomistDashboard: React.FC = () => {
   const [replyingTo, setReplyingTo] = useState<CommentResponse | null>(null);
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [selectedLogDetails, setSelectedLogDetails] = useState<ActionLog | null>(null);
+  const [siderCollapsed, setSiderCollapsed] = useState(false);
   const [approvalModalVisible, setApprovalModalVisible] = useState(false);
   const [approvalForm] = Form.useForm();
   const [rejectForm] = Form.useForm();
@@ -3349,8 +3350,15 @@ const EconomistDashboard: React.FC = () => {
   }, [user?.leave_delegation_status, user?.delegation_transition_info]);
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={200} style={{ background: '#fff', borderRight: '1px solid #e0e0e0', position: 'fixed', height: '100vh', left: 0, top: 0, zIndex: 10 }}>
+    <Layout style={{ minHeight: '100vh' }} className="economist-dashboard-layout">
+      <Sider
+        width={200}
+        breakpoint="lg"
+        collapsed={siderCollapsed}
+        onBreakpoint={setSiderCollapsed}
+        collapsedWidth={80}
+        style={{ background: '#fff', borderRight: '1px solid #e0e0e0', position: 'fixed', height: '100vh', left: 0, top: 0, zIndex: 10 }}
+      >
         {/* User Profile Section */}
         <div
           style={{
@@ -3393,7 +3401,7 @@ const EconomistDashboard: React.FC = () => {
           onClick={handleMenuClick}
         />
       </Sider>
-      <Layout style={{ marginLeft: 200, minHeight: '100vh' }}>
+      <Layout style={{ marginLeft: siderCollapsed ? 80 : 200, minHeight: '100vh', transition: 'margin-left 0.2s' }} className="economist-dashboard-main">
         <Content style={{ padding: 24, minHeight: 280, background: '#fff' }}>
           {selectedMenuKey === 'dashboard' ? (
             renderDashboard()

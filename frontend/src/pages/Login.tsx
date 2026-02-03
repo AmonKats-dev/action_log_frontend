@@ -26,12 +26,19 @@ const float = keyframes`
 const LoginContainer = styled.div`
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: linear-gradient(135deg, #f4e4c1 0%, #e8d5a3 50%, #d2b173 100%);
-  height: 100vh;
+  min-height: 100vh;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  overflow: hidden;
+  overflow: auto;
+  padding: 12px 0;
+  box-sizing: border-box;
+  @media (max-width: 600px) {
+    padding: 8px 0;
+    align-items: flex-start;
+  }
 
   &::before {
     content: '';
@@ -58,6 +65,18 @@ const LoginCard = styled.div`
   z-index: 1;
   animation: ${slideUp} 0.8s ease-out;
   display: flex;
+  @media (max-width: 900px) {
+    flex-direction: column;
+    max-height: none;
+    min-height: auto;
+    border-radius: 16px;
+    margin: 16px;
+  }
+  @media (max-width: 600px) {
+    margin: 12px;
+    max-height: 95vh;
+    overflow-y: auto;
+  }
 `;
 
 const LeftPanel = styled.div`
@@ -68,12 +87,24 @@ const LeftPanel = styled.div`
   display: flex;
   flex-direction: column;
   justify-content: center;
+  @media (max-width: 900px) {
+    max-height: 35vh;
+    overflow-y: auto;
+    padding: 12px;
+  }
+  @media (max-width: 600px) {
+    max-height: 30vh;
+    padding: 10px;
+  }
 `;
 
 const RightPanel = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
+  @media (max-width: 900px) {
+    min-height: 0;
+  }
 `;
 
 
@@ -208,6 +239,10 @@ const SystemTitle = styled.h1`
   margin-bottom: 8px;
   position: relative;
   z-index: 2;
+  @media (max-width: 600px) {
+    font-size: 18px;
+    margin-bottom: 6px;
+  }
 `;
 
 const DepartmentInfo = styled.p`
@@ -218,9 +253,26 @@ const DepartmentInfo = styled.p`
   z-index: 2;
 `;
 
+const FormHeaderBlock = styled.div`
+  margin-bottom: 15px;
+  padding: 25px 20px;
+  background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  color: white;
+  border-radius: 8px;
+  text-align: center;
+  position: relative;
+  @media (max-width: 600px) {
+    padding: 16px 12px;
+    margin-bottom: 12px;
+  }
+`;
+
 const FormContainer = styled.div`
   padding: 25px 20px;
   overflow-y: auto;
+  @media (max-width: 600px) {
+    padding: 16px 12px;
+  }
 `;
 
 const FormGroup = styled.div`
@@ -315,6 +367,9 @@ const Footer = styled.div`
   padding: 20px;
   background: #f8f9fa;
   border-top: 1px solid #e9ecef;
+  @media (max-width: 600px) {
+    padding: 12px 16px;
+  }
 `;
 
 const FooterText = styled.p`
@@ -496,40 +551,7 @@ const Login: React.FC = () => {
         
         <RightPanel>
           <FormContainer>
-            {/* Header Content - Logo, Title, and Department - Always visible */}
-            <div style={{ 
-              marginBottom: '15px', 
-              padding: '25px 20px', 
-              background: 'linear-gradient(135deg, #2c3e50 0%, #34495e 100%)',
-              color: 'white',
-              borderRadius: '8px',
-              textAlign: 'center',
-              position: 'relative'
-            }}>
-              {/* Floating decorative elements */}
-              <div style={{
-                content: '',
-                position: 'absolute',
-                top: '-30px',
-                left: '-30px',
-                width: '60px',
-                height: '60px',
-                background: 'rgba(255, 255, 255, 0.1)',
-                borderRadius: '50%',
-                animation: 'float 6s ease-in-out infinite'
-              }}></div>
-              <div style={{
-                content: '',
-                position: 'absolute',
-                bottom: '-20px',
-                right: '-20px',
-                width: '50px',
-                height: '50px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                borderRadius: '50%',
-                animation: 'float 4s ease-in-out infinite reverse'
-              }}></div>
-              
+            <FormHeaderBlock>
               <div style={{ 
                 width: '60px', 
                 height: '60px', 
@@ -551,27 +573,13 @@ const Login: React.FC = () => {
                   }}
                 />
               </div>
-              <h1 style={{ 
-                margin: '0 0 6px 0', 
-                fontSize: '20px', 
-                color: 'white',
-                fontWeight: '700',
-                position: 'relative',
-                zIndex: 2
-              }}>
+              <SystemTitle style={{ margin: '0 0 6px 0', fontSize: '20px', color: 'white' }}>
                 PAP Action Log
-              </h1>
-              <p style={{ 
-                margin: '0', 
-                fontSize: '13px', 
-                opacity: 0.9,
-                lineHeight: '1.3',
-                position: 'relative',
-                zIndex: 2
-              }}>
+              </SystemTitle>
+              <DepartmentInfo style={{ margin: 0, fontSize: 13 }}>
                 Projects Analysis & Public Investment Department
-              </p>
-            </div>
+              </DepartmentInfo>
+            </FormHeaderBlock>
 
             {!isCodeSent ? (
               <form onSubmit={handleSendCode}>

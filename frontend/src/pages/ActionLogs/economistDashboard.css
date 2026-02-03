@@ -230,4 +230,103 @@
   background: #2563eb;
   border-radius: 8px;
   font-weight: 500;
+}
+
+/* Responsive: tablets and mobile */
+@media (max-width: 1024px) {
+  .economist-dashboard-bg {
+    padding: 16px;
+    overflow-y: auto;
+    height: auto;
+    min-height: 100vh;
+  }
+  .dashboard-header-content {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .dashboard-title {
+    font-size: 1.5rem;
+  }
+  .dashboard-search-row {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .dashboard-status-select {
+    width: 100%;
+    min-width: 0;
+  }
+  .modal-row {
+    flex-direction: column;
+    gap: 0;
+  }
+  .dashboard-table .ant-table-thead > tr > th,
+  .dashboard-table .ant-table-tbody > tr > td {
+    padding: 12px 8px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .economist-dashboard-bg {
+    padding: 12px;
+  }
+  .dashboard-header-content {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .dashboard-title-row {
+    justify-content: center;
+  }
+  .dashboard-title {
+    font-size: 1.25rem;
+  }
+  .dashboard-search-row {
+    flex-direction: column;
+  }
+  .dashboard-search-input {
+    width: 100%;
+  }
+  .dashboard-filter-btn,
+  .dashboard-status-select {
+    width: 100%;
+  }
+  .dashboard-table .ant-table {
+    font-size: 12px;
+  }
+  .dashboard-table .ant-table-thead > tr > th,
+  .dashboard-table .ant-table-tbody > tr > td {
+    padding: 8px 6px;
+  }
+}
+
+@media (max-width: 480px) {
+  .economist-dashboard-bg {
+    padding: 8px;
+  }
+  .dashboard-title {
+    font-size: 1.1rem;
+  }
+  .create-action-log-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .logout-btn {
+    width: 100%;
+  }
+}
+
+/* Modal full width on small screens */
+@media (max-width: 640px) {
+  .dashboard-modal.ant-modal {
+    max-width: calc(100vw - 24px) !important;
+    top: 12px;
+    padding-bottom: 12px;
+  }
+  .dashboard-modal .ant-modal-content {
+    max-width: 100%;
+  }
+  .dashboard-modal .ant-modal-body {
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+  }
 } 
