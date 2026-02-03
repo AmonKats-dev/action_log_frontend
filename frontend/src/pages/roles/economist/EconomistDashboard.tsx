@@ -14,6 +14,7 @@ import { User } from '../../../types/user';
 import { Dayjs } from 'dayjs';
 import UserDisplay from '../../../components/UserDisplay';
 import DelegationStatus from '../../../components/DelegationStatus';
+import { actionLogMatchesSearch } from '../../../utils/actionLogSearchUtil';
 import { ColumnsType } from 'antd/es/table';
 import * as XLSX from 'xlsx';
 import axios from 'axios';
@@ -122,6 +123,10 @@ const EconomistDashboard: React.FC = () => {
   const [rejectForm] = Form.useForm();
   const [assignForm] = Form.useForm();
   const [createForm] = Form.useForm();
+  const [extendTimelineModalVisible, setExtendTimelineModalVisible] = useState(false);
+  const [extendTimelineLog, setExtendTimelineLog] = useState<ActionLog | null>(null);
+  const [extendTimelineForm] = Form.useForm();
+  const [extendingTimeline, setExtendingTimeline] = useState(false);
   const [notificationCount, setNotificationCount] = useState<number>(0);
   const [assignmentHistory, setAssignmentHistory] = useState<ActionLogAssignmentHistory[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<{ [logId: number]: number }>({});
@@ -160,21 +165,8 @@ const EconomistDashboard: React.FC = () => {
   const isAgCPAP = user?.has_ag_cpap_designation || false;
   const isAgACpap = user?.has_ag_acpap_designation || false;
   const canManageDelegations = user?.can_manage_delegations || false;
-  
-  console.log('Designation check details:', {
-    designation: userDesignation,
-    normalized: normalizedDesignation,
-    isAgCPAP: isAgCPAP,
-    isAgACpap: isAgACpap,
-    canManageDelegations: canManageDelegations,
-    userObject: user,
-    backendChecks: {
-      has_ag_cpap_designation: user?.has_ag_cpap_designation,
-      has_ag_acpap_designation: user?.has_ag_acpap_designation,
-      can_manage_delegations: user?.can_manage_delegations
-    }
-  });
-  
+
+
   const isUnitHead = userDesignation.includes('head') || userRoleName.includes('unit_head') || isAgCPAP;
   const isAssistantCommissioner = userRoleName.includes('assistant_commissioner');
   const isCommissioner = userRoleName.includes('commissioner');
@@ -242,59 +234,19 @@ const EconomistDashboard: React.FC = () => {
 
   const fetchActionLogs = async () => {
     try {
-      console.log('[ECONOMIST_DASHBOARD] fetchActionLogs: Starting fetch...');
-      console.log('[ECONOMIST_DASHBOARD] fetchActionLogs: Current user:', {
-        id: user?.id,
-        role: user?.role?.name,
-        department: user?.department,
-        department_unit: user?.department_unit?.id
-      });
-      
       const response = await actionLogService.getAll();
-      console.log('[ECONOMIST_DASHBOARD] fetchActionLogs: Raw API response:', response);
-      
       const logsArray = Array.isArray(response) ? response : [];
-      console.log('[ECONOMIST_DASHBOARD] fetchActionLogs: Processed logs array length:', logsArray.length);
-      
+
       // Filter logs based on user's role and unit
-      const filteredLogs = logsArray.filter(log => {
-        console.log('[ECONOMIST_DASHBOARD] fetchActionLogs: Checking log:', {
-          id: log.id,
-          title: log.title,
-          status: log.status,
-          closure_approval_stage: log.closure_approval_stage,
-          created_by_unit: log.created_by?.department_unit?.id,
-          user_unit: user?.department_unit?.id,
-          assigned_to: log.assigned_to,
-          user_id: user?.id,
-          department_id: log.department_id,
-          department_unit: log.department_unit
-        });
-        
+      const filteredLogs = logsArray.filter(() => {
         // If user is Commissioner or Assistant Commissioner, they can see all logs
-        if (user?.role?.name?.toLowerCase() === 'commissioner' || 
+        if (user?.role?.name?.toLowerCase() === 'commissioner' ||
             user?.role?.name?.toLowerCase() === 'assistant_commissioner') {
-          console.log('[ECONOMIST_DASHBOARD] fetchActionLogs: User is commissioner/assistant commissioner, showing log');
           return true;
         }
-        
         // For other users, the backend should have already filtered based on department and assignment
-        // Just add any additional frontend-specific filtering here if needed
-        console.log('[ECONOMIST_DASHBOARD] fetchActionLogs: User is regular user, backend should have filtered appropriately');
         return true;
       });
-      
-      console.log('[ECONOMIST_DASHBOARD] fetchActionLogs: Final filtered logs count:', filteredLogs.length);
-      console.log('[ECONOMIST_DASHBOARD] fetchActionLogs: Final filtered logs:', filteredLogs.map(log => ({
-        id: log.id,
-        title: log.title,
-        status: log.status,
-        closure_approval_stage: log.closure_approval_stage,
-        created_by_unit: log.created_by?.department_unit?.id,
-        assigned_to: log.assigned_to,
-        department_id: log.department_id,
-        department_unit: log.department_unit
-      })));
 
       return filteredLogs;
     } catch (error) {
@@ -354,9 +306,11 @@ const EconomistDashboard: React.FC = () => {
 
     try {
       setUsersLoading(true);
-      const response = await userService.getByDepartment(user.department);
+      // Use assignable users (PAP + IBP) so Assigned To column shows IBP Unit names instead of "Unassigned"
+      const departmentId = typeof user.department === 'object' ? user.department?.id : user.department;
+      const response = await userService.getAssignableUsers(departmentId);
       let usersArray: User[] = [];
-      
+
       if (Array.isArray(response)) {
         usersArray = response;
       } else if (response && typeof response === 'object') {
@@ -365,9 +319,8 @@ const EconomistDashboard: React.FC = () => {
           usersArray = typedResponse.results;
         }
       }
-      
-      // Only filter out inactive users
-      return usersArray.filter(user => user.is_active);
+
+      return usersArray.filter(u => u.is_active);
     } catch (error) {
       console.error('Error fetching users:', error);
       message.error('Failed to fetch users');
@@ -595,18 +548,9 @@ const EconomistDashboard: React.FC = () => {
   };
 
   const handleCreate = async (values: any) => {
-    if (creating) return; // Prevent double submit
+    if (creating) return;
     setCreating(true);
     try {
-      console.log('[ECONOMIST_DASHBOARD] handleCreate: Starting action log creation');
-      console.log('[ECONOMIST_DASHBOARD] handleCreate: Form values:', values);
-      console.log('[ECONOMIST_DASHBOARD] handleCreate: Current user:', {
-        id: user?.id,
-        role: user?.role?.name,
-        department: user?.department,
-        department_unit: user?.department_unit?.id
-      });
-      
       if (!user) {
         message.error('User not found');
         setCreating(false);
@@ -622,116 +566,58 @@ const EconomistDashboard: React.FC = () => {
       // Convert string IDs to integers for the backend
       const assignedToInts = assignedTo.map((id: string | number) => parseInt(id.toString()));
 
-      // For commissioners and assistant commissioners, get the department and unit from the first assigned user
-      let departmentId = user.department?.id || user.department;
-      let departmentUnitId = user.department_unit?.id;
+      // Resolve department_id: support both number and { id: number } from API
+      const toDeptId = (d: number | { id: number } | undefined | null): number | null => {
+        if (d == null) return null;
+        if (typeof d === 'number' && !Number.isNaN(d) && d > 0) return d;
+        if (typeof d === 'object' && d !== null && 'id' in d) return (d as { id: number }).id;
+        return null;
+      };
+      let departmentId: number | null = toDeptId(user.department as number | { id: number } | undefined);
 
-      console.log('[ECONOMIST_DASHBOARD] handleCreate: Department debug:', {
-        userDepartment: user.department,
-        userDepartmentType: typeof user.department,
-        userDepartmentId: user.department?.id,
-        userDepartmentIdType: typeof user.department?.id
-      });
-
-      if ((user.role?.name?.toLowerCase() === 'commissioner' || 
-           user.role?.name?.toLowerCase() === 'assistant_commissioner') && 
-          assignedTo.length > 0) {
-        const firstAssignedUser = users.find(u => u.id.toString() === assignedTo[0]);
-        if (firstAssignedUser) {
-          console.log('[ECONOMIST_DASHBOARD] handleCreate: First assigned user department:', {
-            firstAssignedUserDepartment: firstAssignedUser.department,
-            firstAssignedUserDepartmentType: typeof firstAssignedUser.department,
-            firstAssignedUserDepartmentId: firstAssignedUser.department?.id,
-            firstAssignedUserDepartmentIdType: typeof firstAssignedUser.department?.id
-          });
-          
-          // Fix: Extract the ID from the department object
-          departmentId = firstAssignedUser.department?.id || firstAssignedUser.department;
-          departmentUnitId = firstAssignedUser.department_unit?.id;
-          
-          console.log('[ECONOMIST_DASHBOARD] handleCreate: Using assigned user department/unit:', {
-            departmentId,
-            departmentIdType: typeof departmentId,
-            departmentUnitId,
-            assignedUser: firstAssignedUser
-          });
+      // For commissioners/assistant commissioners, or when creator has no department, use first assignee's department
+      if (assignedTo.length > 0) {
+        const firstAssignedUser = users.find(u => u.id.toString() === assignedTo[0].toString());
+        const assigneeDeptId = firstAssignedUser ? toDeptId(firstAssignedUser.department as number | { id: number } | undefined) : null;
+        if ((user.role?.name?.toLowerCase() === 'commissioner' || user.role?.name?.toLowerCase() === 'assistant_commissioner') && assigneeDeptId != null) {
+          departmentId = assigneeDeptId;
+        } else if ((departmentId == null || departmentId === 0) && assigneeDeptId != null) {
+          departmentId = assigneeDeptId;
         }
       }
 
+      if (departmentId == null || departmentId <= 0 || Number.isNaN(departmentId)) {
+        message.error('Could not determine department. Please ensure your account or the assigned user has a department set.');
+        setCreating(false);
+        return;
+      }
+
       const createData: CreateActionLogData = {
-        title: values.title,
-        description: values.description,
+        title: String(values.title ?? '').trim(),
+        description: values.description != null && values.description !== '' ? String(values.description) : null,
         due_date: formattedDueDate,
-        priority: values.priority.charAt(0).toUpperCase() + values.priority.slice(1), // Capitalize first letter
-        department_id: typeof departmentId === 'object' ? departmentId.id : departmentId,
+        priority: values.priority ? String(values.priority).charAt(0).toUpperCase() + String(values.priority).slice(1).toLowerCase() : 'Medium',
+        department_id: departmentId,
         assigned_to: assignedToInts,
-        team_leader: showTeamLeaderField ? values.team_leader : null
+        status: 'open',
+        ...(showTeamLeaderField && values.team_leader != null ? { team_leader: values.team_leader } : {})
       };
 
-      console.log('[ECONOMIST_DASHBOARD] handleCreate: Final create data:', createData);
-      console.log('[ECONOMIST_DASHBOARD] handleCreate: Assigned to details:', {
-        originalAssignedTo: assignedTo,
-        convertedAssignedTo: assignedToInts,
-        assignedToLength: assignedTo.length,
-        assignedToType: typeof assignedTo,
-        isArray: Array.isArray(assignedTo)
-      });
-      
-      // Additional debugging
-      console.log('[ECONOMIST_DASHBOARD] handleCreate: Data being sent to backend:', {
-        title: createData.title,
-        titleType: typeof createData.title,
-        description: createData.description,
-        descriptionType: typeof createData.description,
-        due_date: createData.due_date,
-        due_dateType: typeof createData.due_date,
-        priority: createData.priority,
-        priorityType: typeof createData.priority,
-        department_id: createData.department_id,
-        department_idType: typeof createData.department_id,
-        assigned_to: createData.assigned_to,
-        assigned_toType: typeof createData.assigned_to,
-        assigned_toLength: createData.assigned_to?.length,
-        assigned_toIsArray: Array.isArray(createData.assigned_to),
-        team_leader: createData.team_leader,
-        team_leaderType: typeof createData.team_leader,
-        showTeamLeaderField: showTeamLeaderField
-      });
-      
-      // Debug users state
-      console.log('[ECONOMIST_DASHBOARD] handleCreate: Users state:', {
-        usersCount: users.length,
-        users: users.map(u => ({ id: u.id, name: `${u.first_name} ${u.last_name}` })),
-        assignedToValues: assignedTo,
-        assignedToInts: assignedToInts
-      });
-      
-      // Validate required fields
       if (!createData.title || !createData.priority) {
         message.error('Please fill in all required fields');
         setCreating(false);
         return;
       }
 
-      // Validate that at least one user is assigned
       if (!createData.assigned_to || createData.assigned_to.length === 0) {
         message.error('Please select at least one user to assign the action log to');
         setCreating(false);
         return;
       }
 
-              // Validate team leader when 2+ assignees
-              if (createData.assigned_to.length >= 2 && !createData.team_leader) {
-          message.error('Please select a team leader when assigning to 2 or more users');
-          setCreating(false);
-          return;
-        }
-
-      // Actually create the log
-      console.log('[ECONOMIST_DASHBOARD] handleCreate: Calling actionLogService.create');
+      // Team leader is auto-selected (first assignee) when 2+ assignees; backend also auto-sets if not sent
       const newLog = await actionLogService.create(createData);
-      console.log('[ECONOMIST_DASHBOARD] handleCreate: New log created:', newLog);
-      
+
       // Prepend the new log to the actionLogs state
       setActionLogs(prevLogs => [newLog, ...prevLogs]);
       setCreateModalVisible(false);
@@ -740,9 +626,17 @@ const EconomistDashboard: React.FC = () => {
       setSelectedTeamLeader(null);
       setTeamLeaderOptions([]);
       message.success('Action log created successfully');
-    } catch (error) {
+    } catch (error: any) {
       console.error('[ECONOMIST_DASHBOARD] handleCreate: Error:', error);
-      message.error('Failed to create action log');
+      const errData = error.response?.data;
+      if (errData && typeof errData === 'object') {
+        console.error('[ECONOMIST_DASHBOARD] API validation errors:', errData);
+        const firstMsg = typeof errData.detail === 'string' ? errData.detail : null;
+        const fieldErrors = errData && !firstMsg ? Object.entries(errData).map(([k, v]) => `${k}: ${Array.isArray(v) ? v[0] : v}`).join('; ') : null;
+        message.error(firstMsg || fieldErrors || 'Failed to create action log');
+      } else {
+        message.error('Failed to create action log');
+      }
     } finally {
       setCreating(false);
     }
@@ -786,6 +680,34 @@ const EconomistDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error assigning action log:', error);
       message.error('Failed to assign action log');
+    }
+  };
+
+  const handleExtendTimeline = async (values: { new_due_date: Dayjs }) => {
+    if (!extendTimelineLog) return;
+    try {
+      setExtendingTimeline(true);
+      // Use calendar date as UTC midnight so the exact date is preserved (avoids timezone shifting e.g. 03-04 to 02-04)
+      const formattedDueDate = values.new_due_date
+        ? `${values.new_due_date.format('YYYY-MM-DD')}T00:00:00.000Z`
+        : null;
+      if (!formattedDueDate) {
+        message.error('Please select a new due date');
+        return;
+      }
+      await actionLogService.update(extendTimelineLog.id, { due_date: formattedDueDate });
+      message.success('Timeline extended successfully');
+      setExtendTimelineModalVisible(false);
+      extendTimelineForm.resetFields();
+      setExtendTimelineLog(null);
+      const refreshedLogs = await fetchActionLogs();
+      setActionLogs(refreshedLogs);
+    } catch (error: any) {
+      console.error('Error extending timeline:', error);
+      const msg = error?.response?.data?.due_date?.[0] ?? error?.response?.data?.detail ?? 'Failed to extend timeline';
+      message.error(typeof msg === 'string' ? msg : 'Failed to extend timeline');
+    } finally {
+      setExtendingTimeline(false);
     }
   };
 
@@ -871,10 +793,7 @@ const EconomistDashboard: React.FC = () => {
 
   const handleApprove = async (values: any) => {
     try {
-      if (!selectedLog) {
-        console.log('handleApprove: No selectedLog');
-        return;
-      }
+      if (!selectedLog) return;
       setApproving(true);
       
       const userDesignation = (user?.designation || '').toLowerCase();
@@ -883,43 +802,15 @@ const EconomistDashboard: React.FC = () => {
       
       // Use backend designation checks instead of local regex
       const isAgCPAP = user?.has_ag_cpap_designation || false;
-      
-      console.log('Designation check details:', {
-        designation: userDesignation,
-        normalized: normalizedDesignation,
-        isAgCPAP: isAgCPAP,
-        backendCheck: user?.has_ag_cpap_designation
-      });
-      
+
       // CORRECTED FLOW: Use backend delegation-aware approval logic
       // This properly handles Ag. C/PAP on leave and Ag. AC/PAP taking over responsibilities
       const canApproveAtStage = (
         selectedLog.status === 'pending_approval' && // Status must be "pending approval"
         user?.can_approve_action_logs // User must be able to approve based on current delegation status
       );
-      
-      console.log('[APPROVE] Corrected approval flow check:', {
-        status: selectedLog.status,
-        isPendingApproval: selectedLog.status === 'pending_approval',
-        isAgCPAP,
-        canApproveAtStage,
-        logId: selectedLog.id,
-        title: selectedLog.title
-      });
-      
-      console.log('User designation:', user?.designation, 'User role:', user?.role?.name);
-      console.log('userDesignation:', userDesignation, 'Designation match:', isAgCPAP);
-      console.log('handleApprove called', {
-        selectedLog,
-        user,
-        isAgCPAP,
-        canApproveAtStage,
-        status: selectedLog.status,
-        closure_approval_stage: selectedLog.closure_approval_stage
-      });
-      
+
       if (!canApproveAtStage) {
-        console.log('handleApprove: Not authorized', { canApproveAtStage });
         message.error('You are not authorized to approve action logs with pending approval status');
         setApproving(false);
         return;
@@ -950,10 +841,7 @@ const EconomistDashboard: React.FC = () => {
 
   const handleReject = async (values: any) => {
     try {
-      if (!selectedLog) {
-        console.log('handleReject: No selectedLog');
-        return;
-      }
+      if (!selectedLog) return;
       setRejecting(true);
       
       const userDesignation = (user?.designation || '').toLowerCase();
@@ -968,27 +856,8 @@ const EconomistDashboard: React.FC = () => {
         selectedLog.status === 'pending_approval' && // Status must be "pending approval"
         user?.can_approve_action_logs // User must be able to approve based on current delegation status
       );
-      
-      console.log('[REJECT] Corrected rejection flow check:', {
-        status: selectedLog.status,
-        isPendingApproval: selectedLog.status === 'pending_approval',
-        isAgCPAP,
-        canRejectAtStage,
-        logId: selectedLog.id,
-        title: selectedLog.title
-      });
-      
-      console.log('handleReject called', {
-        selectedLog,
-        user,
-        isAgCPAP,
-        canRejectAtStage,
-        status: selectedLog.status,
-        closure_approval_stage: selectedLog.closure_approval_stage
-      });
-      
+
       if (!canRejectAtStage) {
-        console.log('handleReject: Not authorized', { canRejectAtStage });
         message.error('You are not authorized to reject action logs with pending approval status');
         setRejecting(false);
         return;
@@ -1072,31 +941,6 @@ const EconomistDashboard: React.FC = () => {
   
   const canViewAllLogs = user.role?.can_view_all_logs || false;
 
-  // Debug logging
-  console.log('[ECONOMIST_DASHBOARD] Delegation check:', {
-    user: user?.username,
-    role: user?.role?.name,
-    isAgCPAP,
-    hasActiveDelegation,
-    delegationDetails: user?.has_active_delegation,
-    canCreateActionLogsByDesignation: user?.can_create_action_logs_by_designation,
-    canCreateLogs
-  });
-  
-  // More detailed logging
-  console.log('[ECONOMIST_DASHBOARD] Detailed delegation check:', {
-    username: user?.username,
-    roleName: user?.role?.name,
-    userDesignation: userDesignation,
-    normalizedDesignation,
-    isAgCPAP,
-    hasActiveDelegation,
-    delegationObject: user?.has_active_delegation,
-    delegationIsValid: user?.has_active_delegation?.is_valid,
-    canCreateActionLogsByDesignation: user?.can_create_action_logs_by_designation,
-    finalCanCreateLogs: canCreateLogs
-  });
-
   // Update status filter options
   const statusFilterOptions = [
     { text: 'New', value: 'open' },
@@ -1107,35 +951,21 @@ const EconomistDashboard: React.FC = () => {
 
   const getFilteredLogs = () => {
     let filteredLogs = [...actionLogs];
-    console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: Starting with', filteredLogs.length, 'logs');
-    console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: showAssignedOnly =', showAssignedOnly);
-    console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: showPendingApproval =', showPendingApproval);
-    console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: search =', search);
-    console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: statusFilter =', statusFilter);
 
     // If "Assigned To Me" is selected, show assigned logs and, for approvers, logs pending their approval
     if (showAssignedOnly) {
       const isUnitHead = userDesignation.includes('head') || userRoleName.includes('unit_head') || isAgCPAP || isAgACpap;
       const isAssistantCommissioner = userRoleName.includes('assistant_commissioner');
       const isCommissioner = userRoleName.includes('commissioner');
-      console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: Filtering for assigned only, user ID =', user?.id);
-      console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: isUnitHead =', isUnitHead, 'isAssistantCommissioner =', isAssistantCommissioner, 'isCommissioner =', isCommissioner);
-      
+
       filteredLogs = filteredLogs.filter(log => {
         const isAssignedToMe = log.assigned_to?.includes(user?.id || 0);
         const isPendingApproval = (isUnitHead && log.closure_approval_stage === 'unit_head' && log.status === 'pending_approval') ||
                                  (isAssistantCommissioner && log.closure_approval_stage === 'assistant_commissioner' && log.status === 'pending_approval') ||
                                  (isCommissioner && log.closure_approval_stage === 'commissioner' && log.status === 'pending_approval');
-        
-        // Exclude logs with status "Done" (closed) from "Assigned To Me" view
-        // This ensures "Assigned To Me" only shows incoming and pending completion logs
         const isNotDone = log.status !== 'closed';
-        
-        console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: Log', log.id, '- isAssignedToMe =', isAssignedToMe, '- isPendingApproval =', isPendingApproval, '- isNotDone =', isNotDone, '- assigned_to =', log.assigned_to);
-        
         return (isAssignedToMe || isPendingApproval) && isNotDone;
       });
-      console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: After assigned filter,', filteredLogs.length, 'logs remaining');
     }
 
     // If "Pending Approval" is selected, show logs that need approval
@@ -1149,41 +979,25 @@ const EconomistDashboard: React.FC = () => {
       })));
       
       filteredLogs = filteredLogs.filter(log => {
-        // Show logs that are pending approval (these are what Ag. C/PAP users approve/reject)
-        const isPendingApproval = log.status === 'pending_approval' && log.closure_approval_stage !== 'none';
-        
-        console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: Checking log for pending approval:', {
-          id: log.id,
-          title: log.title,
-          status: log.status,
-          closure_approval_stage: log.closure_approval_stage,
-          isPendingApproval
-        });
-        
-        return isPendingApproval;
+        return log.status === 'pending_approval' && log.closure_approval_stage !== 'none';
       });
-      console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: After pending approval filter (corrected flow),', filteredLogs.length, 'logs remaining');
     }
 
-    // Apply search filter
+    // Apply search filter (all columns)
     if (search) {
       const searchLower = search.toLowerCase();
-      filteredLogs = filteredLogs.filter(log => 
-        log.title.toLowerCase().includes(searchLower) ||
-        (log.description && log.description.toLowerCase().includes(searchLower))
+      filteredLogs = filteredLogs.filter(log =>
+        actionLogMatchesSearch(log, searchLower, { users: allUsers.length ? allUsers : users })
       );
-      console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: After search filter,', filteredLogs.length, 'logs remaining');
     }
 
     // Apply status filter
     if (statusFilter) {
-      filteredLogs = filteredLogs.filter(log => 
+      filteredLogs = filteredLogs.filter(log =>
         log.status.toLowerCase() === statusFilter.toLowerCase()
       );
-      console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: After status filter,', filteredLogs.length, 'logs remaining');
     }
 
-    console.log('[ECONOMIST_DASHBOARD] getFilteredLogs: Final result,', filteredLogs.length, 'logs');
     return filteredLogs;
   };
 
@@ -1398,7 +1212,7 @@ const EconomistDashboard: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', margin: '2px 0 4px 0' }}>
           {comment.status && (
             <Tag style={{ background: tagStyle.bg, color: tagStyle.color, border: 'none', fontWeight: 500 }}>
-              {comment.status === 'open' ? 'New' :
+              {comment.status === 'open' ? 'Update' :
                 comment.status === 'in_progress' ? 'In Progress' :
                 comment.status === 'pending_approval' ? 'Pending Approval' : 'Done'}
             </Tag>
@@ -1516,13 +1330,21 @@ const EconomistDashboard: React.FC = () => {
                       selectedLogDetails.status.charAt(0).toUpperCase() + selectedLogDetails.status.slice(1).replace('_', ' ')}
                   </Tag>
             </div>
-                <div style={{ fontWeight: 500, color: '#444' }}>Created At:</div>
-                <div>{format(new Date(selectedLogDetails.created_at), 'yyyy-MM-dd HH:mm')}</div>
-                <div style={{ fontWeight: 500, color: '#444' }}>Due Date:</div>
+                <div style={{ fontWeight: 500, color: '#444' }}>Entry Date:</div>
+                <div>
+                  {(selectedLogDetails.entry_date ?? selectedLogDetails.created_at)
+                    ? ((d: string) => d.includes('T') ? d.slice(0, 10) : d.slice(0, 10))(
+                        selectedLogDetails.entry_date ?? selectedLogDetails.created_at ?? ''
+                      )
+                    : '-'}
+                </div>
+                <div style={{ fontWeight: 500, color: '#444' }}>Timeline:</div>
                 <div>
                   {selectedLogDetails.due_date ? (
                     <>
-                      {format(new Date(selectedLogDetails.due_date), 'yyyy-MM-dd')}
+                      {selectedLogDetails.due_date.includes('T')
+                        ? selectedLogDetails.due_date.slice(0, 10)
+                        : selectedLogDetails.due_date.slice(0, 10)}
                       {/* Days Remaining Tag */}
                       <span style={{ marginLeft: 12 }}>
                         {(() => {
@@ -1621,7 +1443,7 @@ const EconomistDashboard: React.FC = () => {
               />
             </div>
           </div>
-          {/* Right Column: Comments */}
+          {/* Right Column: Comments (with Current Update below heading) */}
           <div style={{ flex: '1', minWidth: 0 }}>
           <div style={{ 
             padding: '24px',
@@ -1632,20 +1454,57 @@ const EconomistDashboard: React.FC = () => {
               height: '100%',
             }}>
               <h3 style={{ 
-                marginBottom: '20px',
+                marginBottom: '16px',
                 fontSize: '16px',
                 fontWeight: 600,
                 color: '#1a1a1a',
                 borderBottom: '1px solid #f0f0f0',
                 paddingBottom: '8px',
               }}>Comments</h3>
+              {/* Current Update - from action_logs_actionlogcomment (comment with is_current_update=true), fallback to log.current_update/description */}
+              {(() => {
+                const currentUpdateComment = selectedLogComments.find(c => c.is_current_update);
+                const fromComment = currentUpdateComment?.comment?.trim() || '';
+                const detail = selectedLogDetails || selectedLog;
+                const fromField = (detail?.current_update ?? '')?.trim();
+                const fromDesc = (detail?.description ?? '')?.trim();
+                const currentUpdateText = fromComment
+                  || fromField
+                  || (fromDesc.startsWith('Current update:')
+                    ? fromDesc.replace(/^Current update:\s*/i, '').trim()
+                    : '');
+                if (!currentUpdateText) return null;
+                return (
+                  <div style={{ marginBottom: '20px' }}>
+                    <div style={{ 
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: '#555',
+                      marginBottom: '8px',
+                    }}>Current update</div>
+                    <div style={{ 
+                      padding: '12px 16px', 
+                      backgroundColor: '#f8f9fa', 
+                      borderRadius: '8px', 
+                      color: '#333',
+                      whiteSpace: 'pre-wrap',
+                      lineHeight: 1.5,
+                      border: '1px solid #eee',
+                    }}>
+                      {currentUpdateText}
+                    </div>
+                  </div>
+                );
+              })()}
               {commentsLoading ? (
                 <div style={{ textAlign: 'center', padding: '20px' }}>
                   <Spin />
             </div>
               ) : (
                 <div>
-                  {selectedLogComments.map(comment => (
+                  {selectedLogComments
+                    .filter(comment => !comment.is_current_update)
+                    .map(comment => (
                     <div key={comment.id}>
                       {renderComment(comment)}
                     </div>
@@ -1661,18 +1520,30 @@ const EconomistDashboard: React.FC = () => {
 
   const columns: ColumnsType<ActionLog> = [
     {
+      title: <span style={{ whiteSpace: 'nowrap' }}>No.</span>,
+      dataIndex: 'id',
+      key: 'id',
+      width: '5%',
+      render: (id: number) => (
+        <span style={{ fontWeight: 500, color: '#595959', whiteSpace: 'nowrap' }}>#{id}</span>
+      ),
+    },
+    {
       title: 'Title',
       dataIndex: 'title',
       key: 'title',
       width: '25%',
       render: (text: string) => (
         <div style={{ 
-          fontWeight: 600,
-          color: '#1a1a1a',
+          fontWeight: 500,
+          color: '#262626',
           fontSize: '14px',
-          lineHeight: '1.4'
+          lineHeight: 1.5,
+          letterSpacing: '0.01em',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
         }}>
-          {text}
+          {text || '—'}
         </div>
       ),
     },
@@ -1681,14 +1552,25 @@ const EconomistDashboard: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       width: '10%',
-      render: (status: string) => (
-        <Tag color={getStatusColor(status)}>
-          {status === 'pending_approval' ? 'Pending Approval' :
-            status === 'open' ? 'New' :
-            status === 'closed' ? 'Done' :
-            status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
-        </Tag>
-      ),
+      render: (status: string, record: ActionLog) => {
+        const currentUpdateText = (record.current_update ?? '').trim()
+          || (record.description?.trim().startsWith('Current update:')
+            ? record.description.trim().replace(/^Current update:\s*/i, '').trim()
+            : '')
+          || 'No update yet';
+        return (
+          <Tooltip title={<span style={{ whiteSpace: 'pre-wrap' }}>{currentUpdateText}</span>}>
+            <span>
+              <Tag color={getStatusColor(status)}>
+                {status === 'pending_approval' ? 'Pending Approval' :
+                  status === 'open' ? 'New' :
+                  status === 'closed' ? 'Done' :
+                  status.charAt(0).toUpperCase() + status.slice(1).replace('_', ' ')}
+              </Tag>
+            </span>
+          </Tooltip>
+        );
+      },
       filters: [
         { text: 'New', value: 'open' },
         { text: 'In Progress', value: 'in_progress' },
@@ -1715,12 +1597,12 @@ const EconomistDashboard: React.FC = () => {
       width: '15%',
       render: (assigned: number[] | null, record: ActionLog) => {
         if (!assigned || assigned.length === 0) {
-          return <span style={{ color: '#999' }}>Unassigned</span>;
+          return <span style={{ color: '#999' }}>All PAP staff</span>;
         }
         
         const assignedUsers = users.filter(user => assigned.includes(user.id));
         if (assignedUsers.length === 0) {
-          return <span style={{ color: '#999' }}>Unassigned</span>;
+          return <span style={{ color: '#999' }}>All PAP staff</span>;
         }
 
         // If current user is assigned, show "Me" first
@@ -1731,176 +1613,110 @@ const EconomistDashboard: React.FC = () => {
         const isTeamAssignment = assigned.length >= 2;
         const teamLeader = record.team_leader;
         
+        const cellStyle: React.CSSProperties = { maxWidth: '100%', minWidth: 0 };
+        const teamLeaderBlockStyle: React.CSSProperties = {
+          fontSize: '12px',
+          padding: '4px 8px',
+          fontWeight: '500',
+          backgroundColor: '#e6f7ff',
+          border: '1px solid #91d5ff',
+          borderRadius: '4px',
+          marginTop: '6px',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+          display: 'block',
+        };
+        const teamLeaderName = teamLeader ? `${users.find(u => u.id === teamLeader)?.first_name ?? ''} ${users.find(u => u.id === teamLeader)?.last_name ?? ''}`.trim() : '';
+
+        const renderTeamLeaderLine = () => {
+          if (!isTeamAssignment || !teamLeader || !teamLeaderName) return null;
+          return (
+            <>
+              <br />
+              <Tooltip title={`${teamLeaderName} – responsible for updating status`}>
+                <span style={teamLeaderBlockStyle} title={teamLeaderName}>
+                  👑 Team leader:<br />{teamLeaderName}
+                </span>
+              </Tooltip>
+            </>
+          );
+        };
+
+        const renderNoTeamLeader = () => {
+          if (!isTeamAssignment || teamLeader) return null;
+          return (
+            <>
+              <br />
+              <Tooltip title="No team leader selected. Please assign a team leader to enable status updates.">
+                <span style={{ ...teamLeaderBlockStyle, backgroundColor: '#fff7e6', border: '1px solid #ffd591', cursor: 'help' }}>
+                  <strong>⚠️ No Team Leader</strong>
+                </span>
+              </Tooltip>
+            </>
+          );
+        };
+
         if (isCurrentUserAssigned) {
           const otherUsers = assignedUsers.filter(u => u.id !== currentUserId);
           if (otherUsers.length === 0) {
             return (
-              <div>
-                <Tag color="default" style={{ margin: 0 }}>
-                  Me
-                </Tag>
-                {isTeamAssignment && teamLeader && (
-                  <div style={{ marginTop: '6px' }}>
-                    <Tag 
-                      color="blue" 
-                      style={{ 
-                        fontSize: '12px', 
-                        padding: '4px 8px',
-                        fontWeight: '500',
-                        backgroundColor: '#e6f7ff',
-                        border: '1px solid #91d5ff'
-                      }}
-                    >
-                      <strong>👑 Team Leader:</strong> {users.find(u => u.id === teamLeader)?.first_name} {users.find(u => u.id === teamLeader)?.last_name}
-                    </Tag>
-                  </div>
-                )}
+              <div style={cellStyle}>
+                <Tag color="default" style={{ margin: 0 }}>Me</Tag>
+                {renderTeamLeaderLine()}
               </div>
             );
           }
           return (
-            <div>
-              <Space size={[4, 4]} wrap>
-                <Tag color="default">
-                  Me
-                </Tag>
+            <div style={cellStyle}>
+              <Space size={[4, 4]} wrap style={{ minWidth: 0 }}>
+                <Tag color="default">Me</Tag>
                 {otherUsers.map(u => (
-                  <Tag key={u.id} color="default">
-                    {u.first_name} {u.last_name}
-                  </Tag>
+                  <Tag key={u.id} color="default">{u.first_name} {u.last_name}</Tag>
                 ))}
               </Space>
-              {isTeamAssignment && teamLeader && (
-                <div style={{ marginTop: '6px' }}>
-                  <Tooltip title="This person is responsible for updating the action log status. Other team members can only add comments.">
-                    <Tag 
-                      color="blue" 
-                      style={{ 
-                        fontSize: '12px', 
-                        padding: '4px 8px',
-                        fontWeight: '500',
-                        backgroundColor: '#e6f7ff',
-                        border: '1px solid #91d5ff',
-                        cursor: 'help'
-                      }}
-                    >
-                      <strong>👑 Team Leader:</strong> {users.find(u => u.id === teamLeader)?.first_name} {users.find(u => u.id === teamLeader)?.last_name}
-                    </Tag>
-                  </Tooltip>
-                </div>
-              )}
-              {isTeamAssignment && !teamLeader && (
-                <div style={{ marginTop: '6px' }}>
-                  <Tooltip title="No team leader selected. Please assign a team leader to enable status updates.">
-                    <Tag 
-                      color="orange" 
-                      style={{ 
-                        fontSize: '12px', 
-                        padding: '4px 8px',
-                        fontWeight: '500',
-                        backgroundColor: '#fff7e6',
-                        border: '1px solid #ffd591',
-                        cursor: 'help'
-                      }}
-                    >
-                      <strong>⚠️ No Team Leader</strong>
-                    </Tag>
-                  </Tooltip>
-                </div>
-              )}
+              {renderTeamLeaderLine()}
+              {renderNoTeamLeader()}
             </div>
           );
         }
-        
+
         return (
-          <div>
-            <Space size={[4, 4]} wrap>
+          <div style={cellStyle}>
+            <Space size={[4, 4]} wrap style={{ minWidth: 0 }}>
               {assignedUsers.map(u => (
-                <Tag key={u.id} color="default">
-                  {u.first_name} {u.last_name}
-                </Tag>
+                <Tag key={u.id} color="default">{u.first_name} {u.last_name}</Tag>
               ))}
             </Space>
-            {isTeamAssignment && teamLeader && (
-              <div style={{ marginTop: '6px' }}>
-                <Tooltip title="This person is responsible for updating the action log status. Other team members can only add comments.">
-                  <Tag 
-                    color="blue" 
-                    style={{ 
-                      fontSize: '12px', 
-                      padding: '4px 8px',
-                      fontWeight: '500',
-                      backgroundColor: '#e6f7ff',
-                      border: '1px solid #91d5ff',
-                      cursor: 'help'
-                    }}
-                  >
-                    <strong>👑 Team Leader:</strong> {users.find(u => u.id === teamLeader)?.first_name} {users.find(u => u.id === teamLeader)?.last_name}
-                  </Tag>
-                </Tooltip>
-              </div>
-            )}
-            {isTeamAssignment && !teamLeader && (
-              <div style={{ marginTop: '6px' }}>
-                <Tooltip title="No team leader selected. Please assign a team leader to enable status updates.">
-                  <Tag 
-                    color="orange" 
-                    style={{ 
-                      fontSize: '12px', 
-                      padding: '4px 8px',
-                      fontWeight: '500',
-                      backgroundColor: '#fff7e6',
-                      border: '1px solid #ffd591',
-                      cursor: 'help'
-                    }}
-                  >
-                    <strong>⚠️ No Team Leader</strong>
-                    </Tag>
-                  </Tooltip>
-                </div>
-              )}
-            {isTeamAssignment && !teamLeader && (
-              <div style={{ marginTop: '6px' }}>
-                <Tooltip title="No team leader selected. Please assign a team leader to enable status updates.">
-                  <Tag 
-                    color="orange" 
-                    style={{ 
-                      fontSize: '12px', 
-                      padding: '4px 8px',
-                      fontWeight: '500',
-                      backgroundColor: '#fff7e6',
-                      border: '1px solid #ffd591',
-                      cursor: 'help'
-                    }}
-                  >
-                    <strong>⚠️ No Team Leader</strong>
-                  </Tag>
-                </Tooltip>
-              </div>
-            )}
+            {renderTeamLeaderLine()}
+            {renderNoTeamLeader()}
           </div>
         );
       }
     },
     {
-      title: 'Created At',
-      dataIndex: 'created_at',
-      key: 'created_at',
+      title: 'Entry Date',
+      dataIndex: 'entry_date',
+      key: 'entry_date',
       width: '15%',
-      render: (date: string) => format(new Date(date), 'yyyy-MM-dd'),
+      render: (_: string, record: ActionLog) => {
+        const dateStr = record.entry_date ?? record.created_at;
+        if (!dateStr) return '-';
+        return dateStr.slice(0, 10);
+      },
     },
     {
-      title: 'Due Date',
+      title: 'Timeline',
       dataIndex: 'due_date',
       key: 'due_date',
       width: '15%',
       render: (date: string, record: ActionLog) => {
         if (!date) return '-';
+        const displayDate = date.includes('T') ? date.slice(0, 10) : date.slice(0, 10);
         const dueDate = new Date(date);
         if (record.status === 'closed') {
           return (
             <div>
-              {format(dueDate, 'yyyy-MM-dd')}
+              {displayDate}
               <div style={{ marginTop: '4px' }}>
                 <Tag color="#e8f5e9" style={{ color: '#388e3c', fontWeight: 500, fontStyle: 'italic' }}>
                   Completed just on time
@@ -1910,13 +1726,13 @@ const EconomistDashboard: React.FC = () => {
           );
         }
         const today = new Date();
-        // Set both dates to start of day to get accurate day difference
         const startOfDueDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
         const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
         const daysRemaining = Math.ceil((startOfDueDate.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24));
+        const isOverdue = daysRemaining < 0;
         return (
           <div>
-            <div>{format(dueDate, 'yyyy-MM-dd')}</div>
+            <div>{displayDate}</div>
             <div style={{ marginTop: '4px' }}>
               <Tag color={daysRemaining <= 5 ? 'red' : 'green'}>
                 {daysRemaining < 0 ? (
@@ -1928,6 +1744,25 @@ const EconomistDashboard: React.FC = () => {
                 )}
               </Tag>
             </div>
+            {isOverdue && (
+              <div style={{ marginTop: '6px' }}>
+                <Button
+                  type="link"
+                  size="small"
+                  icon={<CalendarOutlined />}
+                  onClick={() => {
+                    setExtendTimelineLog(record);
+                    extendTimelineForm.setFieldsValue({
+                      new_due_date: dayjs().add(1, 'week').startOf('day')
+                    });
+                    setExtendTimelineModalVisible(true);
+                  }}
+                  style={{ padding: 0, height: 'auto', fontSize: '12px' }}
+                >
+                  Extend timeline
+                </Button>
+              </div>
+            )}
           </div>
         );
       },
@@ -1958,17 +1793,7 @@ const EconomistDashboard: React.FC = () => {
             hasLeaveDelegationResponsibilities // Ag. AC/PAP user with leave delegation responsibilities
           )
         );
-        
-        console.log('[TABLE] canApproveReject: Corrected flow check', {
-          logId: record.id,
-          status: record.status,
-          isPendingApproval: record.status === 'pending_approval',
-          isAgCPAP,
-          isOnLeave,
-          hasLeaveDelegationResponsibilities,
-          canApproveReject
-        });
-        
+
         const userUnitId = user.department_unit?.id;
         const isAssignedToMe = record.assigned_to?.includes(user?.id || 0);
         const isAssigned = record.assigned_to && record.assigned_to.length > 0;
@@ -2109,6 +1934,7 @@ const EconomistDashboard: React.FC = () => {
     } else if (e.key === 'actionLogs') {
       setShowAssignedOnly(false);
       setShowPendingApproval(false);
+      setUnitFilter('all'); // Show all logs across units when viewing "All Action Logs"
     } else if (e.key === 'logout') {
       handleLogout();
     }
@@ -2231,9 +2057,7 @@ const EconomistDashboard: React.FC = () => {
               description: row[headers.indexOf('description')],
               due_date: row[headers.indexOf('due_date')] || null,
               priority: (row[headers.indexOf('priority')] || 'Medium').toUpperCase(),
-              department_id: user.department,
-              department_unit: user.department_unit?.id,
-              created_by: user.id,
+              department_id: Number(user.department ?? 0),
               assigned_to: assignedTo,
               status: 'open' as ActionLogStatus
             } as CreateActionLogData;
@@ -2250,7 +2074,8 @@ const EconomistDashboard: React.FC = () => {
           setActionLogs(prevLogs => [...createdLogs, ...prevLogs]);
         } catch (error) {
           console.error('Error processing file:', error);
-          message.error('Failed to process file');
+          const msg = error instanceof Error ? error.message : 'Unknown error';
+          message.error(`Failed to process file: ${msg}`);
         }
       };
         reader.readAsBinaryString(file);
@@ -2301,40 +2126,24 @@ const EconomistDashboard: React.FC = () => {
     .map(id => {
       const assignee = users.find(u => u.department_unit?.id === id);
       const unitName = assignee?.department_unit?.name || `Unit ${id}`;
-      console.log('[ECONOMIST_DASHBOARD] uniqueUnits: Found unit', { id, name: unitName, assignee: assignee ? `${assignee.first_name} ${assignee.last_name}` : 'Unknown' });
       return { 
         id, 
         name: unitName
       };
     });
 
-  console.log('[ECONOMIST_DASHBOARD] uniqueUnits: Final units', uniqueUnits);
-
   // Filter logs by selected unit
   const getUnitFilteredLogs = (logs: ActionLog[]): ActionLog[] => {
-    console.log('[ECONOMIST_DASHBOARD] getUnitFilteredLogs: Starting with', logs.length, 'logs from getFilteredLogs');
-    console.log('[ECONOMIST_DASHBOARD] getUnitFilteredLogs: unitFilter =', unitFilter);
-    
-    // If unitFilter is 'all' or not set, return all logs
     if (unitFilter === 'all' || !unitFilter) {
-      console.log('[ECONOMIST_DASHBOARD] getUnitFilteredLogs: Returning all logs (unitFilter is "all")');
       return logs;
     }
-    
+
     const filteredLogs = logs.filter(log => {
-      // If user is assigned to this log, always show it
       const isAssignedToMe = log.assigned_to?.includes(user?.id || 0);
-      if (isAssignedToMe) {
-        console.log('[ECONOMIST_DASHBOARD] getUnitFilteredLogs: Log', log.id, '- User is assigned, allowing through unit filter');
-        return true;
-      }
-      
-      // If user is the creator of the log, always show it (for unassigned logs)
+      if (isAssignedToMe) return true;
+
       const isCreator = log.created_by?.id === user?.id;
-      if (isCreator) {
-        console.log('[ECONOMIST_DASHBOARD] getUnitFilteredLogs: Log', log.id, '- User is creator, allowing through unit filter');
-        return true;
-      }
+      if (isCreator) return true;
       
       // Check if any of the assigned users belong to the selected unit
       const hasUserInSelectedUnit = log.assigned_to?.some(assigneeId => {
@@ -2352,40 +2161,44 @@ const EconomistDashboard: React.FC = () => {
       });
 
       // Check if this log is pending unit head approval for the current unit
-      const isPendingUnitHeadApproval = log.status === 'pending_approval' && 
-                                       log.closure_approval_stage === 'unit_head' && 
+      const isPendingUnitHeadApproval = log.status === 'pending_approval' &&
+                                       log.closure_approval_stage === 'unit_head' &&
                                        hasUserInSelectedUnit;
-
-      console.log('[ECONOMIST_DASHBOARD] getUnitFilteredLogs: Log', log.id, 
-        '- assigned_to =', log.assigned_to,
-        '- unitFilter =', unitFilter,
-        '- hasUserInSelectedUnit =', hasUserInSelectedUnit,
-        '- isPendingUnitHeadApproval =', isPendingUnitHeadApproval,
-        '- matches =', hasUserInSelectedUnit || isPendingUnitHeadApproval
-      );
-
       return hasUserInSelectedUnit || isPendingUnitHeadApproval;
     });
 
-    console.log('[ECONOMIST_DASHBOARD] getUnitFilteredLogs: After unit filter,', filteredLogs.length, 'logs remaining');
     return filteredLogs;
   };
 
-  // Update export functions to use getUnitFilteredLogs
+  // Update export functions to use getUnitFilteredLogs — columns: Title, Status, Assigned To, Entry Date, Timeline, Current update
+  const getAssignedToDisplay = (assigned: number[] | null) => {
+    if (!assigned || assigned.length === 0) return 'All PAP staff';
+    const assignedUsers = users.filter(u => assigned.includes(u.id));
+    if (assignedUsers.length === 0) return 'All PAP staff';
+    const currentUserId = user?.id || 0;
+    const names = assignedUsers.map(u => u.id === currentUserId ? 'Me' : `${u.first_name} ${u.last_name}`);
+    return names.join(', ');
+  };
+  const getCurrentUpdateText = (log: ActionLog) => {
+    const fromField = (log.current_update ?? '').trim();
+    if (fromField) return fromField;
+    const desc = log.description?.trim() ?? '';
+    if (desc.startsWith('Current update:')) return desc.replace(/^Current update:\s*/i, '').trim();
+    return 'No update yet';
+  };
+  const formatExportDate = (d: string | null | undefined) => {
+    if (!d) return '';
+    return d.includes('T') ? d.slice(0, 10) : d.slice(0, 10);
+  };
   const handleExportExcel = () => {
     const filteredLogs = getUnitFilteredLogs(actionLogs);
-    console.log('Exporting logs:', filteredLogs);
     const data = filteredLogs.map(log => ({
-      'ID': log.id,
       'Title': log.title,
-      'Description': log.description,
-      'Department': log.department?.name || '',
-      'Status': log.status,
-      'Priority': log.priority,
-      'Due Date': log.due_date ? new Date(log.due_date).toLocaleDateString() : '',
-      'Created By': log.created_by ? `${log.created_by.first_name} ${log.created_by.last_name}` : '',
-      'Created At': new Date(log.created_at).toLocaleDateString(),
-      'Updated At': new Date(log.updated_at).toLocaleDateString()
+      'Status': log.status === 'pending_approval' ? 'Pending Approval' : log.status === 'open' ? 'New' : log.status === 'closed' ? 'Done' : log.status.charAt(0).toUpperCase() + log.status.slice(1).replace('_', ' '),
+      'Assigned To': getAssignedToDisplay(log.assigned_to),
+      'Entry Date': formatExportDate(log.entry_date ?? log.created_at ?? undefined),
+      'Timeline': formatExportDate(log.due_date ?? undefined),
+      'Current update': getCurrentUpdateText(log)
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -2397,16 +2210,13 @@ const EconomistDashboard: React.FC = () => {
     const filteredLogs = getUnitFilteredLogs(actionLogs);
     let content = 'Action Logs\n\n';
     filteredLogs.forEach(log => {
-      content += `ID: ${log.id}\n`;
+      const statusDisplay = log.status === 'pending_approval' ? 'Pending Approval' : log.status === 'open' ? 'New' : log.status === 'closed' ? 'Done' : log.status.charAt(0).toUpperCase() + log.status.slice(1).replace('_', ' ');
       content += `Title: ${log.title}\n`;
-      content += `Description: ${log.description}\n`;
-      content += `Department: ${log.department?.name || ''}\n`;
-      content += `Status: ${log.status}\n`;
-      content += `Priority: ${log.priority}\n`;
-      content += `Due Date: ${log.due_date ? new Date(log.due_date).toLocaleDateString() : ''}\n`;
-      content += `Created By: ${log.created_by ? `${log.created_by.first_name} ${log.created_by.last_name}` : ''}\n`;
-      content += `Created At: ${new Date(log.created_at).toLocaleDateString()}\n`;
-      content += `Updated At: ${new Date(log.updated_at).toLocaleDateString()}\n\n`;
+      content += `Status: ${statusDisplay}\n`;
+      content += `Assigned To: ${getAssignedToDisplay(log.assigned_to)}\n`;
+      content += `Entry Date: ${formatExportDate(log.entry_date ?? log.created_at ?? undefined)}\n`;
+      content += `Timeline: ${formatExportDate(log.due_date ?? undefined)}\n`;
+      content += `Current update: ${getCurrentUpdateText(log)}\n\n`;
     });
     const blob = new Blob([content], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
@@ -2601,7 +2411,6 @@ const EconomistDashboard: React.FC = () => {
     const statusData = [
       { status: 'Completed', count: completedLogs, color: '#52c41a' },
       { status: 'In Progress', count: inProgressLogs, color: '#1890ff' },
-      { status: 'Pending', count: pendingLogs, color: '#faad14' },
       { status: 'Overdue', count: overdueLogs, color: '#ff4d4f' },
     ];
 
@@ -2632,7 +2441,7 @@ const EconomistDashboard: React.FC = () => {
         } else if (unitName?.includes('IN')) {
           acc['IN'] = (acc['IN'] || 0) + 1;
         } else {
-          acc['Other Units'] = (acc['Other Units'] || 0) + 1;
+          acc['IBP Unit'] = (acc['IBP Unit'] || 0) + 1;
         }
       });
       
@@ -2667,7 +2476,7 @@ const EconomistDashboard: React.FC = () => {
       const units = assignedUsers.map(user => user?.department_unit?.name).filter(Boolean);
       
       units.forEach(unitName => {
-        let unitKey = 'Other Units';
+        let unitKey = 'IBP Unit';
         if (unitName?.includes('PAS')) {
           unitKey = 'PAS';
         } else if (unitName?.includes('IN')) {
@@ -2696,10 +2505,10 @@ const EconomistDashboard: React.FC = () => {
       return acc;
     }, {} as Record<string, { total: number; onTime: number; overdue: number; avgResponseRate: number; totalResponseRate: number }>);
 
-    // Calculate average response rates
+    // Calculate average response rate: % of logs completed on time (avoids 0% when totalDays is 0)
     Object.keys(unitResponseData).forEach(unit => {
       const data = unitResponseData[unit];
-      data.avgResponseRate = data.total > 0 ? Math.round(data.totalResponseRate / data.total) : 0;
+      data.avgResponseRate = data.total > 0 ? Math.round((data.onTime / data.total) * 100) : 0;
     });
 
     return (
@@ -2953,7 +2762,7 @@ const EconomistDashboard: React.FC = () => {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           <div style={{ width: '12px', height: '12px', backgroundColor: color, borderRadius: '50%', marginRight: '8px' }} />
-                          <span style={{ fontWeight: '600', fontSize: '16px' }}>{unit} Unit</span>
+                          <span style={{ fontWeight: '600', fontSize: '16px' }}>{unit === 'IBP Unit' ? unit : `${unit} Unit`}</span>
                         </div>
                         <div style={{ display: 'flex', gap: '16px', fontSize: '14px' }}>
                           <span>Total: <strong>{data.total}</strong></span>
@@ -3332,9 +3141,9 @@ const EconomistDashboard: React.FC = () => {
                 'You are available to handle action log approvals and rejections.'
               )}
             </div>
-          )}
-          )}
-          
+          );
+          })()}
+
           {/* Delegation Status for Ag. AC/PAP users */}
           {user?.has_ag_acpap_designation && (
             <div style={{ 
@@ -3407,22 +3216,8 @@ const EconomistDashboard: React.FC = () => {
     console.log('DEBUG: Delegation delegated_to field:', delegation.delegated_to);
     console.log('DEBUG: Delegation delegated_to type:', typeof delegation.delegated_to);
     
-    // Try to get the user ID from different possible fields
-    let targetUserId = delegation.delegated_to_id;
-    if (!targetUserId && delegation.delegated_to) {
-      // If delegated_to_id is not available, try to extract from delegated_to
-      if (typeof delegation.delegated_to === 'string') {
-        // delegated_to might be a string representation, try to find the user
-        const targetUser = users.find(u => 
-          `${u.first_name} ${u.last_name}` === delegation.delegated_to ||
-          u.username === delegation.delegated_to
-        );
-        if (targetUser) {
-          targetUserId = targetUser.id;
-          console.log('DEBUG: Found target user from delegated_to string:', targetUser);
-        }
-      }
-    }
+    // Try to get the user ID from delegated_to_id or fall back to delegated_to (both are numeric user IDs)
+    const targetUserId = delegation.delegated_to_id ?? delegation.delegated_to;
     
     console.log('DEBUG: Final target user ID to use:', targetUserId);
     
@@ -3463,39 +3258,29 @@ const EconomistDashboard: React.FC = () => {
 
   // Function to handle assignee count changes
   const handleAssigneeCountChange = (assigneeIds: (string | number)[]) => {
-    console.log('[TEAM_LEADER] handleAssigneeCountChange called with:', assigneeIds);
     const count = assigneeIds.length;
     setShowTeamLeaderField(count >= 2);
-    
-    // Reset team leader if assignee count drops below 2
+
     if (count < 2) {
       setSelectedTeamLeader(null);
       setTeamLeaderOptions([]);
       createForm.setFieldsValue({ team_leader: undefined });
-      console.log('[TEAM_LEADER] Reset team leader - count < 2');
+      return;
     }
-    
-    // Update team leader options if 2+ assignees
-    if (count >= 2) {
-      const options: Array<{label: string, value: number}> = [];
-      assigneeIds.forEach((assigneeId: string | number) => {
-        const user = users.find(u => u.id === (typeof assigneeId === 'string' ? parseInt(assigneeId) : assigneeId));
-        if (user) {
-          options.push({
-            label: `${user.first_name} ${user.last_name}`,
-            value: user.id
-          });
-        }
-      });
-      
-      setTeamLeaderOptions(options);
-      console.log('[TEAM_LEADER] Updated team leader options:', options);
-      
-      // Clear the team leader field when assignees change
-      setSelectedTeamLeader(null);
-      createForm.setFieldsValue({ team_leader: undefined });
-      console.log('[TEAM_LEADER] Cleared team leader field for new selection');
-    }
+
+    const options: Array<{label: string, value: number}> = [];
+    assigneeIds.forEach((assigneeId: string | number) => {
+      const user = users.find(u => u.id === (typeof assigneeId === 'string' ? parseInt(assigneeId) : assigneeId));
+      if (user) {
+        options.push({ label: `${user.first_name} ${user.last_name}`, value: user.id });
+      }
+    });
+    setTeamLeaderOptions(options);
+
+    // Auto-select first in list as team leader
+    const firstId = options.length > 0 ? options[0].value : undefined;
+    setSelectedTeamLeader(firstId ?? null);
+    createForm.setFieldsValue({ team_leader: firstId });
   };
 
   // Add delegation status refresh mechanism
@@ -3617,7 +3402,7 @@ const EconomistDashboard: React.FC = () => {
           ) : (
             <Card
               className="dashboard-table-card"
-              style={{ marginBottom: 24, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
+              style={{ marginBottom: 24, borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}
               styles={{ body: { padding: 0 } }}
             >
               <div className="dashboard-table-header-sticky">
@@ -3705,13 +3490,20 @@ const EconomistDashboard: React.FC = () => {
               </div>
               <Table
                 columns={columns}
-                dataSource={getUnitFilteredLogs(getFilteredLogs())}
+                dataSource={[...getUnitFilteredLogs(getFilteredLogs())].sort((a, b) => a.id - b.id)}
                 loading={loading}
                 rowKey="id"
-                pagination={{ pageSize: 10 }}
+                size="middle"
+                scroll={{ y: 'calc(100vh - 320px)' }}
+                pagination={{
+                  pageSize: 15,
+                  showSizeChanger: true,
+                  showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} logs`,
+                  pageSizeOptions: ['15', '20', '50'],
+                }}
                 bordered
                 className="dashboard-table"
-                style={{ borderRadius: 8, fontSize: 14 }}
+                style={{ borderRadius: 0 }}
               />
             </Card>
           )}
@@ -3740,7 +3532,7 @@ const EconomistDashboard: React.FC = () => {
             >
               <Form.Item name="title" label="Title" rules={[{ required: true, message: 'Please enter a title' }]}><Input /></Form.Item>
               <Form.Item name="description" label="Description (Optional)"><Input.TextArea rows={3} /></Form.Item>
-              <Form.Item name="due_date" label="Due Date"><DatePicker style={{ width: '100%' }} /></Form.Item>
+              <Form.Item name="due_date" label="Timeline"><DatePicker style={{ width: '100%' }} /></Form.Item>
               <Form.Item name="priority" label="Priority" rules={[{ required: true, message: 'Please select a priority' }]}><Select options={[{ value: 'High' }, { value: 'Medium' }, { value: 'Low' }]} /></Form.Item>
               <Form.Item name="assigned_to" label="Assign To" rules={[{ required: true, message: 'Please select at least one user' }, { type: 'array', min: 1, message: 'Please select at least one user' }]}>
                 <Select 
@@ -3771,11 +3563,10 @@ const EconomistDashboard: React.FC = () => {
                   </div> */}
                   <Form.Item 
                     name="team_leader" 
-                    label="Team Leader (Required)" 
-                    rules={[{ required: true, message: 'Please select a team leader' }]}
+                    label="Team Leader"
                   >
                     <Select
-                      placeholder="Choose one..."
+                      placeholder="First assignee is selected by default"
                       options={teamLeaderOptions}
                     />
                   </Form.Item>
@@ -3814,8 +3605,8 @@ const EconomistDashboard: React.FC = () => {
               {selectedLog?.assigned_to && (
                 <Form.Item
                   name="due_date"
-                  label="Due Date"
-                  rules={[{ required: true, message: 'Please select a due date' }]}
+                  label="Timeline"
+                  rules={[{ required: true, message: 'Please select a timeline date' }]}
                 >
                   <DatePicker
                     showTime
@@ -3828,6 +3619,46 @@ const EconomistDashboard: React.FC = () => {
                 <Button type="primary" htmlType="submit">
                   {selectedLog?.assigned_to ? "Re-assign" : "Assign"}
                 </Button>
+              </Form.Item>
+            </Form>
+          </Modal>
+          <Modal
+            title="Extend Timeline"
+            open={extendTimelineModalVisible}
+            onCancel={() => {
+              setExtendTimelineModalVisible(false);
+              extendTimelineForm.resetFields();
+              setExtendTimelineLog(null);
+            }}
+            footer={null}
+            destroyOnClose
+          >
+            <Form
+              form={extendTimelineForm}
+              onFinish={handleExtendTimeline}
+              layout="vertical"
+              initialValues={{ new_due_date: dayjs().add(1, 'week').startOf('day') }}
+            >
+              <Form.Item
+                name="new_due_date"
+                label="New due date"
+                rules={[{ required: true, message: 'Please select a new due date' }]}
+              >
+                <DatePicker
+                  style={{ width: '100%' }}
+                  format="YYYY-MM-DD"
+                  disabledDate={(current) => current && current < dayjs().startOf('day')}
+                />
+              </Form.Item>
+              <Form.Item>
+                <Space>
+                  <Button type="primary" htmlType="submit" loading={extendingTimeline} disabled={extendingTimeline}>
+                    Extend timeline
+                  </Button>
+                  <Button onClick={() => { setExtendTimelineModalVisible(false); extendTimelineForm.resetFields(); setExtendTimelineLog(null); }}>
+                    Cancel
+                  </Button>
+                </Space>
               </Form.Item>
             </Form>
           </Modal>

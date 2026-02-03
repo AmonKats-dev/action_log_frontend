@@ -4,7 +4,7 @@ import { ActionLog, CreateActionLogData, RejectActionLogData, ActionLogUpdate, P
 export const actionLogService = {
   getAll: async (): Promise<ActionLog[]> => {
     try {
-      const response = await api.get('/action-logs/');
+      const response = await api.get('/action-logs/', { params: { page_size: 500 } });
       console.log('Raw API response:', response);
       // If the response is a paginated response, return the results
       if (response.data && 'results' in response.data) {

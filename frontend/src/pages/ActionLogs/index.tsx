@@ -4,6 +4,7 @@ import { actionLogService } from '../../services/actionLogService';
 import { departmentService } from '../../services/departmentService';
 import { ActionLog } from '../../types/actionLog';
 import { Department } from '../../types/department';
+import { actionLogMatchesSearch } from '../../utils/actionLogSearchUtil';
 import { Button, Card, Table, Modal, Form, Input, message, Space, Tag, Select, DatePicker } from 'antd';
 import { PlusOutlined, CheckOutlined, CloseOutlined, FilterOutlined, UserAddOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
@@ -117,11 +118,9 @@ const ActionLogs = () => {
     }
   };
 
-  // Filter and search logic
+  // Filter and search logic (all columns)
   const filteredLogs = actionLogs.filter(log => {
-    const matchesSearch =
-      log.title.toLowerCase().includes(search.toLowerCase()) ||
-      (log.description && log.description.toLowerCase().includes(search.toLowerCase()));
+    const matchesSearch = actionLogMatchesSearch(log, search.toLowerCase());
     const matchesStatus = statusFilter ? log.status === statusFilter : true;
     return matchesSearch && matchesStatus;
   });
@@ -131,7 +130,19 @@ const ActionLogs = () => {
       title: 'TITLE',
       dataIndex: 'title',
       key: 'title',
-      render: (text: string) => <b>{text}</b>,
+      render: (text: string) => (
+        <div style={{
+          fontWeight: 500,
+          color: '#262626',
+          fontSize: '14px',
+          lineHeight: 1.5,
+          letterSpacing: '0.01em',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+        }}>
+          {text || '—'}
+        </div>
+      ),
     },
     {
       title: 'DESCRIPTION',

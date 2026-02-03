@@ -226,12 +226,15 @@ const PrincipalDashboard: React.FC = () => {
       width: '25%',
       render: (text: string) => (
         <div style={{ 
-          fontWeight: 600,
-          color: '#1a1a1a',
+          fontWeight: 500,
+          color: '#262626',
           fontSize: '14px',
-          lineHeight: '1.4'
+          lineHeight: 1.5,
+          letterSpacing: '0.01em',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
         }}>
-          {text}
+          {text || '—'}
         </div>
       ),
     },

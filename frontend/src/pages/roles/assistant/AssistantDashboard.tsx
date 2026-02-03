@@ -12,6 +12,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { User } from '../../../types/user';
 import { Dayjs } from 'dayjs';
 import UserDisplay from '../../../components/UserDisplay';
+import { actionLogMatchesSearch } from '../../../utils/actionLogSearchUtil';
 
 const { Sider, Content } = Layout;
 
@@ -392,13 +393,10 @@ const AssistantDashboard: React.FC = () => {
     console.log('[ASSISTANT_DASHBOARD] getFilteredLogs: search =', search);
     console.log('[ASSISTANT_DASHBOARD] getFilteredLogs: statusFilter =', statusFilter);
 
-    // Apply search filter
+    // Apply search filter (all columns)
     if (search) {
       const searchLower = search.toLowerCase();
-      filteredLogs = filteredLogs.filter(log => 
-        log.title.toLowerCase().includes(searchLower) ||
-        (log.description && log.description.toLowerCase().includes(searchLower))
-      );
+      filteredLogs = filteredLogs.filter(log => actionLogMatchesSearch(log, searchLower, { users }));
       console.log('[ASSISTANT_DASHBOARD] getFilteredLogs: After search filter,', filteredLogs.length, 'logs remaining');
     }
 
@@ -497,12 +495,15 @@ const AssistantDashboard: React.FC = () => {
       width: '25%',
       render: (text: string) => (
         <div style={{ 
-          fontWeight: 600,
-          color: '#1a1a1a',
+          fontWeight: 500,
+          color: '#262626',
           fontSize: '14px',
-          lineHeight: '1.4'
+          lineHeight: 1.5,
+          letterSpacing: '0.01em',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
         }}>
-          {text}
+          {text || '—'}
         </div>
       ),
     },

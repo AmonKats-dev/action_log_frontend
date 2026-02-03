@@ -12,6 +12,7 @@ import './ActionLogs/economistDashboard.css';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { User } from '../types/user';
 import { Dayjs } from 'dayjs';
+import { actionLogMatchesSearch } from '../utils/actionLogSearchUtil';
 
 const { Sider, Content } = Layout;
 
@@ -493,12 +494,10 @@ const Dashboard: React.FC = () => {
     return 'Economist Dashboard';
   };
 
-  // Filter and search logic
+  // Filter and search logic (all columns)
   const filteredLogs = Array.isArray(actionLogs)
     ? actionLogs.filter(log => {
-        const matchesSearch =
-          log.title.toLowerCase().includes(search.toLowerCase()) ||
-          (log.description && log.description.toLowerCase().includes(search.toLowerCase()));
+        const matchesSearch = actionLogMatchesSearch(log, search.toLowerCase(), { users: allUsers.length ? allUsers : users });
         const matchesStatus = statusFilter ? log.status === statusFilter : true;
         return matchesSearch && matchesStatus;
       })
@@ -618,16 +617,16 @@ const Dashboard: React.FC = () => {
       width: '20%',
       render: (text: string) => (
         <div style={{ 
-          fontWeight: 600,
-          color: '#1a1a1a',
+          fontWeight: 500,
+          color: '#262626',
           fontSize: '14px',
-          lineHeight: '1.4',
-          textAlign: 'left',
+          lineHeight: 1.5,
+          letterSpacing: '0.01em',
           whiteSpace: 'normal',
           wordBreak: 'break-word',
-          padding: '4px 0'
+          padding: '4px 0',
         }}>
-          {text}
+          {text || '—'}
         </div>
       ),
     },

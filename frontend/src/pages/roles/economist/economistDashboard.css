@@ -1,9 +1,153 @@
+/* ===== Action Log Table - Professional styling ===== */
+
+/* Card container */
+.dashboard-table-card {
+  border-radius: 12px !important;
+  overflow: hidden;
+  border: 1px solid #e8e8e8 !important;
+}
+
+.dashboard-table-card .ant-card-body {
+  padding: 0 !important;
+}
+
+/* Sticky header bar (search, filters, title) */
+.dashboard-table-header-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: linear-gradient(to bottom, #fafbfc 0%, #f5f6f8 100%);
+  padding: 20px 24px;
+  border-bottom: 1px solid #e8e8e8;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-table-header-sticky h1 {
+  color: #1a1a2e;
+  letter-spacing: -0.02em;
+}
+
+/* Table wrapper - rounded bottom, no double borders */
+.dashboard-table.ant-table-wrapper {
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+}
+
+/* Table root */
+.dashboard-table.ant-table {
+  font-size: 13px;
+  background: #fff;
+}
+
+/* Header row - professional look */
+.dashboard-table .ant-table-thead > tr > th {
+  background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%) !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 14px 16px !important;
+  border: none !important;
+  border-bottom: 2px solid #1a252f !important;
+}
+
+.dashboard-table .ant-table-thead > tr > th::before {
+  display: none !important;
+}
+
+.dashboard-table .ant-table-thead > tr > th.ant-table-column-sort {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Filter/sort icons in header - keep visible on dark */
+.dashboard-table .ant-table-thead .ant-table-filter-trigger,
+.dashboard-table .ant-table-thead .ant-table-column-sorter {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.dashboard-table .ant-table-thead .ant-table-filter-trigger:hover,
+.dashboard-table .ant-table-thead .ant-table-column-sorter:hover {
+  color: #fff !important;
+}
+
+/* Body cells - clean borders, comfortable padding */
+.dashboard-table .ant-table-cell {
+  border-right: none !important;
+}
+
+.dashboard-table .ant-table-tbody > tr > td {
+  padding: 12px 16px !important;
+  border-bottom: 1px solid #f0f0f0 !important;
+  border-right: none !important;
+  vertical-align: middle !important;
+  color: #333;
+  transition: background-color 0.15s ease;
+}
+
+/* Alternating row background for readability */
+.dashboard-table .ant-table-tbody > tr:nth-child(even) {
+  background: #fafbfc;
+}
+
+.dashboard-table .ant-table-tbody > tr:nth-child(odd) {
+  background: #fff;
+}
+
+/* Row hover - subtle highlight */
+.dashboard-table .ant-table-tbody > tr:hover > td {
+  background: #f0f7ff !important;
+}
+
+.dashboard-table .ant-table-tbody > tr.ant-table-row-selected > td {
+  background: #e6f4ff !important;
+}
+
+/* First and last cell rounding where applicable */
+.dashboard-table .ant-table-thead > tr > th:first-child {
+  border-radius: 0 !important;
+}
+
+.dashboard-table .ant-table-tbody > tr:last-child > td:first-child {
+  border-radius: 0 0 0 12px;
+}
+
+.dashboard-table .ant-table-tbody > tr:last-child > td:last-child {
+  border-radius: 0 0 12px 0;
+}
+
+/* Pagination - align with table style */
+.dashboard-table .ant-pagination {
+  padding: 16px 24px !important;
+  margin: 0 !important;
+  background: #fafbfc;
+  border-top: 1px solid #f0f0f0;
+}
+
+.dashboard-table .ant-pagination-item {
+  border-radius: 6px;
+}
+
+.dashboard-table .ant-pagination-item-active {
+  background: #2c3e50 !important;
+  border-color: #2c3e50 !important;
+}
+
+.dashboard-table .ant-pagination-item-active a {
+  color: #fff !important;
+}
+
 /* Notification badge for Comments button in Actions column */
 .dashboard-table .ant-badge-count {
-  background: #ff4d4f !important;
+  background: #e74c3c !important;
   color: #fff !important;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 11px;
   min-width: 18px;
   height: 18px;
   line-height: 18px;
@@ -14,39 +158,60 @@
   padding: 0 4px;
 }
 
+/* Action buttons in table - consistent and tidy */
 .dashboard-table .ant-btn-primary {
-  position: relative;
-  background: #1677ff;
+  background: #1890ff;
   border: none;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  box-shadow: 0 1px 4px rgba(24, 144, 255, 0.3);
+  border-radius: 6px;
 }
 
-.dashboard-table .ant-table-cell {
-  border-right: none !important;
+.dashboard-table .ant-btn-primary:hover {
+  background: #40a9ff;
+  box-shadow: 0 2px 6px rgba(24, 144, 255, 0.4);
 }
 
-/* Keep horizontal lines for row separation if desired */
-.dashboard-table .ant-table-tbody > tr > td {
-  border-bottom: 1px solid #f0f0f0;
+.dashboard-table .ant-btn-default {
+  border-radius: 6px;
+  border-color: #d9d9d9;
 }
 
-.dashboard-table-header-sticky {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: #fff;
-  padding: 24px;
-  border-bottom: 1px solid #f0f0f0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+.dashboard-table .ant-btn-default:hover {
+  border-color: #1890ff;
+  color: #1890ff;
 }
 
-/* Remove the previous .ant-table-thead > tr > th and .ant-table-header-sticky overrides */
+/* Tags in table - refined */
+.dashboard-table .ant-tag {
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  padding: 2px 10px;
+}
 
+/* Empty state */
+.dashboard-table .ant-empty {
+  padding: 48px 24px;
+}
+
+.dashboard-table .ant-empty-description {
+  color: #8c8c8c;
+  font-size: 14px;
+}
+
+/* Loading spinner */
+.dashboard-table .ant-spin-container {
+  min-height: 200px;
+}
+
+.dashboard-table .ant-spin-blur {
+  opacity: 0.6;
+}
+
+/* Layout sider (sidebar) - if used */
 .ant-layout-sider-children {
   background: #fff !important;
-  border: 1.5px solid #e0e0b0 !important;
+  border: 1.5px solid #e0e0e0 !important;
   box-sizing: border-box;
-} 
+}

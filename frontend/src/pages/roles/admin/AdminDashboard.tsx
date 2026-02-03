@@ -260,6 +260,19 @@ const AdminDashboard: React.FC = () => {
       title: 'Title',
       dataIndex: 'title',
       key: 'title',
+      render: (text: string) => (
+        <div style={{
+          fontWeight: 500,
+          color: '#262626',
+          fontSize: '14px',
+          lineHeight: 1.5,
+          letterSpacing: '0.01em',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+        }}>
+          {text || '—'}
+        </div>
+      ),
     },
     {
       title: 'Status',

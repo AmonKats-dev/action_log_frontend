@@ -13,6 +13,7 @@ import { Department, DepartmentUnit } from '../../../types/department';
 import { User } from '../../../types/user';
 import UserDisplay from '../../../components/UserDisplay';
 import DelegationStatus from '../../../components/DelegationStatus';
+import { actionLogMatchesSearch } from '../../../utils/actionLogSearchUtil';
 import dayjs from 'dayjs';
 
 const { Sider, Content } = Layout;
@@ -334,13 +335,10 @@ const CommissionerDashboard: React.FC = () => {
     console.log('[COMMISSIONER_DASHBOARD] getFilteredLogs: search =', search);
     console.log('[COMMISSIONER_DASHBOARD] getFilteredLogs: statusFilter =', statusFilter);
 
-    // Apply search filter
+    // Apply search filter (all columns)
     if (search) {
       const searchLower = search.toLowerCase();
-      filteredLogs = filteredLogs.filter(log => 
-        log.title.toLowerCase().includes(searchLower) ||
-        (log.description && log.description.toLowerCase().includes(searchLower))
-      );
+      filteredLogs = filteredLogs.filter(log => actionLogMatchesSearch(log, searchLower, { users }));
       console.log('[COMMISSIONER_DASHBOARD] getFilteredLogs: After search filter,', filteredLogs.length, 'logs remaining');
     }
 
@@ -565,6 +563,19 @@ const CommissionerDashboard: React.FC = () => {
       dataIndex: 'title',
       key: 'title',
       width: '20%',
+      render: (text: string) => (
+        <div style={{
+          fontWeight: 500,
+          color: '#262626',
+          fontSize: '14px',
+          lineHeight: 1.5,
+          letterSpacing: '0.01em',
+          whiteSpace: 'normal',
+          wordBreak: 'break-word',
+        }}>
+          {text || '—'}
+        </div>
+      ),
     },
     {
       title: 'Description',

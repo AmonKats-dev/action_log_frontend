@@ -63,6 +63,28 @@ export const userService = {
     }
   },
 
+  /** PAP + IBP users for Assigned To display and dropdowns (economist dashboard). */
+  getAssignableUsers: async (departmentId?: number): Promise<User[]> => {
+    try {
+      const params = departmentId ? { department: departmentId } : {};
+      const response = await api.get('/users/assignable_users/', { params });
+      let users: User[] = [];
+      if (response.data) {
+        if (Array.isArray(response.data)) {
+          users = response.data as User[];
+        } else if (response.data.results && Array.isArray(response.data.results)) {
+          users = response.data.results as User[];
+        } else if (typeof response.data === 'object') {
+          users = [response.data as User];
+        }
+      }
+      return users;
+    } catch (error) {
+      console.error('Error fetching assignable users:', error);
+      throw error;
+    }
+  },
+
   getByDepartmentUnit: async (unitId: number): Promise<User[]> => {
     try {
       console.log('Fetching users for department unit:', unitId);

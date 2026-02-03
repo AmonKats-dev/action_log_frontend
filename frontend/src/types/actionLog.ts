@@ -14,6 +14,7 @@ export interface ActionLog {
   status: ActionLogStatus;
   priority: string;
   due_date: string | null;
+  entry_date: string | null;
   assigned_to: number[];
   approved_by: User | null;
   approved_at: string | null;
@@ -25,6 +26,8 @@ export interface ActionLog {
   can_approve: boolean;
   comment_count: number;
   approval_status: ApprovalStatus;
+  /** Current status/update text (PAP "Current Update/date" column); shown in view modal above comments. */
+  current_update?: string | null;
   [key: string]: any;
 }
 
@@ -45,6 +48,8 @@ export interface ActionLogComment {
   is_viewed?: boolean;
   parent_comment?: number | null;
   replies?: ActionLogComment[];
+  /** When true, this comment holds the "Current update" (PAP Current Update/date) for the action log; shown under Comments in view modal */
+  is_current_update?: boolean;
 }
 
 export interface ActionLogUpdate {
@@ -66,10 +71,9 @@ export interface CreateActionLogData {
   due_date: string | null;
   priority: string;
   department_id: number;
-  department_unit: number;
-  created_by: number;
   assigned_to: number[];
   status: ActionLogStatus;
+  team_leader?: number | null;
 }
 
 export interface RejectActionLogData {
