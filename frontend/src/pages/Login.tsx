@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { message } from 'antd';
+import { PhoneOutlined, LockOutlined } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import styled from '@emotion/styled';
@@ -407,12 +408,12 @@ const Login: React.FC = () => {
 
   // Test credentials for development
   const testCredentials = [
-    { phone: '+256782939854', username: 'commissioner', role: 'Ag. C/PAP' },
-    { phone: '+256782190304', username: 'assistant_commissioner', role: 'Ag. AC/PAP'},
-    { phone: '+256759977619', username: 'in_head', role: 'IN1' },
-    { phone: '+256701732727', username: 'in_staff2', role: 'IN2' },
-    { phone: '+256775212880', username: 'pas_head', role: 'PAS1' },
-    { phone: '+256756250308', username: 'pas_staff4', role: 'PAS4' }
+    { phone: '+256774572834', username: 'commissioner', role: 'Ag. C/PAP' },
+    { phone: '+256774572835', username: 'assistant_commissioner', role: 'Ag. AC/PAP'},
+    { phone: '+1234567890', username: 'in_head', role: 'IN1' },
+    { phone: '+256789123456', username: 'in_staff2', role: 'IN2' },
+    { phone: '+256774572832', username: 'pas_head', role: 'PAS1' },
+    { phone: '+256774572831', username: 'pas_staff4', role: 'PAS4' }
   ];
 
   useEffect(() => {
@@ -447,13 +448,18 @@ const Login: React.FC = () => {
   }, [isAuthenticated, user, navigate]);
 
   const formatPhoneNumber = (value: string) => {
-    let formatted = value.replace(/\D/g, '');
+    const trimmed = value.trim();
+    // Preserve an explicitly provided international code (e.g. +1234567890)
+    if (trimmed.startsWith('+')) {
+      return '+' + trimmed.slice(1).replace(/\D/g, '');
+    }
+    let formatted = trimmed.replace(/\D/g, '');
     if (formatted.length > 0) {
       if (formatted.startsWith('256')) {
         formatted = '+' + formatted;
       } else if (formatted.startsWith('0')) {
         formatted = '+256' + formatted.substring(1);
-      } else if (!formatted.startsWith('+')) {
+      } else {
         formatted = '+256' + formatted;
       }
     }
@@ -488,7 +494,7 @@ const Login: React.FC = () => {
       }
       
       setIsCodeSent(true);
-      setButtonText('Code Sent! ✓');
+      setButtonText('Code Sent');
       
       setTimeout(() => {
         setButtonText('Send Verification Code');
@@ -526,7 +532,7 @@ const Login: React.FC = () => {
     <LoginContainer>
       <LoginCard>
         <LeftPanel>
-          <TestCredentialsTitle>🧪 Test Credentials (Development)</TestCredentialsTitle>
+          <TestCredentialsTitle>Test Credentials (Development)</TestCredentialsTitle>
           <TestCredentialsSubtitle>
             Select a test phone number to quickly log in without sending a code.
           </TestCredentialsSubtitle>
@@ -585,7 +591,7 @@ const Login: React.FC = () => {
               <form onSubmit={handleSendCode}>
                 <FormGroup>
                   <InputContainer>
-                    <InputIcon>📱</InputIcon>
+                    <InputIcon><PhoneOutlined /></InputIcon>
                     <FormInput
                       type="tel"
                       placeholder="Enter your phone number"
@@ -608,7 +614,7 @@ const Login: React.FC = () => {
               <div>
                 <FormGroup>
                   <InputContainer>
-                    <InputIcon>🔐</InputIcon>
+                    <InputIcon><LockOutlined /></InputIcon>
                     <FormInput
                       type="text"
                       placeholder="Enter verification code"
@@ -631,7 +637,7 @@ const Login: React.FC = () => {
                     textAlign: 'center'
                   }}>
                     <div style={{ fontSize: '14px', color: '#856404', marginBottom: '8px' }}>
-                      🧪 Test Mode - Copy Your Code:
+                      Test Mode — Copy Your Code:
                     </div>
                     <div style={{ 
                       fontSize: '24px', 

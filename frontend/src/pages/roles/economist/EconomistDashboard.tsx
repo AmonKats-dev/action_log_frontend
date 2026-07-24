@@ -6,14 +6,15 @@ import { userService } from '../../../services/userService';
 import { delegationService, Delegation, CreateDelegationRequest } from '../../../services/delegationService';
 import { ActionLog, ActionLogStatus, ActionLogUpdate, CreateActionLogData, ActionLogPriority, ApprovalStatus, ActionLogComment } from '../../../types/actionLog';
 import { Department, DepartmentUnit } from '../../../types/department';
-import { Button, Card, Table, Modal, Form, Input, message, Space, Tag, Select, DatePicker, Layout, Menu, Avatar, Tooltip, Timeline, Spin, Badge, Tabs, Upload, List, Descriptions, Divider, Dropdown, Statistic, Row, Col, Progress } from 'antd';
-import { PlusOutlined, CheckOutlined, FilterOutlined, UserAddOutlined, UserOutlined, FileTextOutlined, FormOutlined, TeamOutlined, SettingOutlined, ClockCircleOutlined, CalendarOutlined, CommentOutlined, ClusterOutlined, UploadOutlined, EyeOutlined, UserSwitchOutlined, EditOutlined, CheckCircleOutlined, CloseOutlined, DownloadOutlined, MessageOutlined, DeleteOutlined, ExclamationCircleOutlined, InfoCircleOutlined, DashboardOutlined } from '@ant-design/icons';
+import { Button, Card, Table, Modal, Form, Input, message, Space, Tag, Select, DatePicker, Layout, Menu, Avatar, Tooltip, Timeline, Spin, Badge, Tabs, Upload, List, Descriptions, Divider, Dropdown, Statistic, Row, Col, Progress, Segmented, Empty } from 'antd';
+import { PlusOutlined, CheckOutlined, FilterOutlined, UserAddOutlined, UserOutlined, FileTextOutlined, FormOutlined, TeamOutlined, SettingOutlined, ClockCircleOutlined, CalendarOutlined, CommentOutlined, ClusterOutlined, UploadOutlined, EyeOutlined, UserSwitchOutlined, EditOutlined, CheckCircleOutlined, CloseOutlined, DownloadOutlined, MessageOutlined, DeleteOutlined, ExclamationCircleOutlined, InfoCircleOutlined, DashboardOutlined, LogoutOutlined, MenuOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import { format, differenceInDays, isPast, isToday } from 'date-fns';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { User } from '../../../types/user';
 import { Dayjs } from 'dayjs';
 import UserDisplay from '../../../components/UserDisplay';
 import DelegationStatus from '../../../components/DelegationStatus';
+import ActivitiesCalendar from '../../../components/ActivitiesCalendar';
 import { actionLogMatchesSearch } from '../../../utils/actionLogSearchUtil';
 import { ColumnsType } from 'antd/es/table';
 import * as XLSX from 'xlsx';
@@ -96,6 +97,11 @@ const EconomistDashboard: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [selectedMenuKey, setSelectedMenuKey] = useState('dashboard');
+  // Distinguishes manually-created action logs from activity-calendar occurrences.
+  // 'logs' = operational action logs only, 'activities' = calendar occurrences only.
+  const [logTypeFilter, setLogTypeFilter] = useState<'all' | 'logs' | 'activities'>('logs');
+  // Optional financial-year scope for the dashboard's Activities Calendar section.
+  const [dashboardFy, setDashboardFy] = useState<string>('all');
   const [showAssignedOnly, setShowAssignedOnly] = useState(false);
   const [showPendingApproval, setShowPendingApproval] = useState(false);
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
@@ -119,6 +125,9 @@ const EconomistDashboard: React.FC = () => {
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [selectedLogDetails, setSelectedLogDetails] = useState<ActionLog | null>(null);
   const [siderCollapsed, setSiderCollapsed] = useState(false);
+  // Responsive navigation: < 768px uses an off-canvas drawer toggled by a hamburger.
+  const [isMobile, setIsMobile] = useState<boolean>(typeof window !== 'undefined' && window.innerWidth < 768);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [approvalModalVisible, setApprovalModalVisible] = useState(false);
   const [approvalForm] = Form.useForm();
   const [rejectForm] = Form.useForm();
@@ -953,6 +962,13 @@ const EconomistDashboard: React.FC = () => {
   const getFilteredLogs = () => {
     let filteredLogs = [...actionLogs];
 
+    // Separate operational action logs from activity-calendar occurrences.
+    if (logTypeFilter === 'logs') {
+      filteredLogs = filteredLogs.filter(log => log.activity_schedule == null);
+    } else if (logTypeFilter === 'activities') {
+      filteredLogs = filteredLogs.filter(log => log.activity_schedule != null);
+    }
+
     // If "Assigned To Me" is selected, show assigned logs and, for approvers, logs pending their approval
     if (showAssignedOnly) {
       const isUnitHead = userDesignation.includes('head') || userRoleName.includes('unit_head') || isAgCPAP || isAgACpap;
@@ -1534,19 +1550,34 @@ const EconomistDashboard: React.FC = () => {
       dataIndex: 'title',
       key: 'title',
       width: '25%',
-      render: (text: string) => (
-        <div style={{ 
-          fontWeight: 500,
-          color: '#262626',
-          fontSize: '14px',
-          lineHeight: 1.5,
-          letterSpacing: '0.01em',
-          whiteSpace: 'normal',
-          wordBreak: 'break-word',
-        }}>
-          {text || '—'}
-        </div>
-      ),
+      render: (text: string, record: ActionLog) => {
+        const isActivity = record.activity_schedule != null;
+        return (
+          <div style={{ 
+            fontWeight: 500,
+            color: '#262626',
+            fontSize: '14px',
+            lineHeight: 1.5,
+            letterSpacing: '0.01em',
+            whiteSpace: 'normal',
+            wordBreak: 'break-word',
+          }}>
+            {isActivity && (
+              <div style={{ marginBottom: 4 }}>
+                <Tag color="purple" icon={<CalendarOutlined />} style={{ fontWeight: 600 }}>
+                  Activity
+                </Tag>
+                {record.reference_code && (
+                  <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#888' }}>
+                    {record.reference_code}
+                  </span>
+                )}
+              </div>
+            )}
+            {text || '—'}
+          </div>
+        );
+      },
     },
     {
       title: 'Status',
@@ -1650,7 +1681,7 @@ const EconomistDashboard: React.FC = () => {
               <br />
               <Tooltip title="No team leader selected. Please assign a team leader to enable status updates.">
                 <span style={{ ...teamLeaderBlockStyle, backgroundColor: '#fff7e6', border: '1px solid #ffd591', cursor: 'help' }}>
-                  <strong>⚠️ No Team Leader</strong>
+                  <strong>No Team Leader</strong>
                 </span>
               </Tooltip>
             </>
@@ -1921,6 +1952,7 @@ const EconomistDashboard: React.FC = () => {
 
   const handleMenuClick = (e: any) => {
     setSelectedMenuKey(e.key);
+    if (isMobile) setMobileNavOpen(false);
     if (e.key === 'dashboard') {
       setShowAssignedOnly(false);
       setShowPendingApproval(false);
@@ -1980,6 +2012,11 @@ const EconomistDashboard: React.FC = () => {
       label: 'Create Action Log',
     }] : []),
     {
+      key: 'activities',
+      icon: <CalendarOutlined />,
+      label: 'Activities Calendar',
+    },
+    {
       key: 'delegations',
       icon: <UserSwitchOutlined />,
       label: 'Delegations',
@@ -1991,9 +2028,9 @@ const EconomistDashboard: React.FC = () => {
     }] : []),
     {
       key: 'logout',
-      icon: <UserOutlined />,
+      icon: <LogoutOutlined />,
       label: 'Logout',
-      style: { marginTop: 32, color: '#d32f2f' },
+      className: 'pap-logout',
     },
   ];
 
@@ -2395,11 +2432,29 @@ const EconomistDashboard: React.FC = () => {
   };
 
   const renderDashboard = () => {
-    const totalLogs = actionLogs.length;
-    const completedLogs = actionLogs.filter(log => log.status === 'closed').length;
-    const pendingLogs = actionLogs.filter(log => log.status === 'pending_approval').length;
-    const inProgressLogs = actionLogs.filter(log => log.status === 'in_progress').length;
-    const overdueLogs = actionLogs.filter(log => {
+    // Separate operational action logs from activity-calendar occurrences so each
+    // is reported distinctly (activities get their own section below).
+    const operationalLogs = actionLogs.filter(log => log.activity_schedule == null);
+    const allActivityOccurrences = actionLogs.filter(log => log.activity_schedule != null);
+
+    // Financial-year options derived from the activity occurrences present.
+    const fyOptions = Array.from(
+      new Map(
+        allActivityOccurrences
+          .filter(o => o.financial_year)
+          .map(o => [o.financial_year!.id, o.financial_year!])
+      ).values()
+    ).sort((a, b) => b.code.localeCompare(a.code));
+
+    const activityOccurrences = dashboardFy === 'all'
+      ? allActivityOccurrences
+      : allActivityOccurrences.filter(o => String(o.financial_year?.id) === dashboardFy);
+
+    const totalLogs = operationalLogs.length;
+    const completedLogs = operationalLogs.filter(log => log.status === 'closed').length;
+    const pendingLogs = operationalLogs.filter(log => log.status === 'pending_approval').length;
+    const inProgressLogs = operationalLogs.filter(log => log.status === 'in_progress').length;
+    const overdueLogs = operationalLogs.filter(log => {
       if (!log.due_date) return false;
       const dueDate = new Date(log.due_date);
       return isPast(dueDate) && log.status !== 'closed';
@@ -2407,6 +2462,79 @@ const EconomistDashboard: React.FC = () => {
 
     const completionRate = totalLogs > 0 ? Math.round((completedLogs / totalLogs) * 100) : 0;
     const overdueRate = totalLogs > 0 ? Math.round((overdueLogs / totalLogs) * 100) : 0;
+
+    // --- Activities Calendar metrics ---
+    const activityScheduleCount = new Set(activityOccurrences.map(o => o.activity_schedule)).size;
+    const activityTotal = activityOccurrences.length;
+    const activityCompleted = activityOccurrences.filter(o => o.schedule_health === 'completed' || o.status === 'closed').length;
+    const activityOverdue = activityOccurrences.filter(o => o.schedule_health === 'overdue').length;
+    const activityOnTrack = Math.max(activityTotal - activityCompleted - activityOverdue, 0);
+    const activityCompletionRate = activityTotal > 0 ? Math.round((activityCompleted / activityTotal) * 100) : 0;
+    const activityHealthData = [
+      { label: 'Completed', count: activityCompleted, color: '#1890ff' },
+      { label: 'On track', count: activityOnTrack, color: '#52c41a' },
+      { label: 'Overdue', count: activityOverdue, color: '#ff4d4f' },
+    ];
+    const activityByQuarter = [1, 2, 3, 4].map(q => ({
+      quarter: q,
+      count: activityOccurrences.filter(o => o.quarter === q).length,
+    }));
+    const activityByCategory = activityOccurrences.reduce((acc, o) => {
+      const name = o.category?.name || 'Uncategorized';
+      acc[name] = (acc[name] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // --- 6-month completion trend (action logs vs. activities) ---
+    const trendMonths: { key: string; label: string }[] = [];
+    const trendNow = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(trendNow.getFullYear(), trendNow.getMonth() - i, 1);
+      trendMonths.push({
+        key: `${d.getFullYear()}-${d.getMonth()}`,
+        label: d.toLocaleString('en-US', { month: 'short' }),
+      });
+    }
+    const monthKeyOf = (iso?: string | null) => {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return `${d.getFullYear()}-${d.getMonth()}`;
+    };
+    const trendData = trendMonths.map(m => ({
+      label: m.label,
+      logs: operationalLogs.filter(l => l.status === 'closed' && monthKeyOf(l.updated_at) === m.key).length,
+      activities: activityOccurrences.filter(o => (o.schedule_health === 'completed' || o.status === 'closed') && monthKeyOf(o.updated_at) === m.key).length,
+    }));
+    const trendMax = Math.max(1, ...trendData.map(d => Math.max(d.logs, d.activities)));
+
+    // Shared professional card styling.
+    const proCardStyle: React.CSSProperties = {
+      borderRadius: 12,
+      boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+      border: '1px solid #f0f0f0',
+    };
+    const statCard = (
+      label: string,
+      value: number | string,
+      icon: React.ReactNode,
+      accent: string,
+      tint: string,
+      suffix?: string,
+    ) => (
+      <Card bordered={false} style={proCardStyle} styles={{ body: { padding: 18 } }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 46, height: 46, borderRadius: 12, background: tint, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ fontSize: 20, color: accent }}>{icon}</span>
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: '#8c8c8c', whiteSpace: 'nowrap' }}>{label}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#262626', lineHeight: 1.2 }}>
+              {value}{suffix ? <span style={{ fontSize: 14, color: '#8c8c8c', fontWeight: 500 }}>{suffix}</span> : null}
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
 
     // Status distribution
     const statusData = [
@@ -2416,21 +2544,21 @@ const EconomistDashboard: React.FC = () => {
     ];
 
     // Priority distribution
-    const priorityData = actionLogs.reduce((acc, log) => {
+    const priorityData = operationalLogs.reduce((acc, log) => {
       const priority = log.priority || 'Medium';
       acc[priority] = (acc[priority] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
     // Department distribution
-    const departmentData = actionLogs.reduce((acc, log) => {
+    const departmentData = operationalLogs.reduce((acc, log) => {
       const dept = log.department?.name || 'Unknown';
       acc[dept] = (acc[dept] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
 
     // Department Unit distribution (PAS, IN, All Units)
-    const unitData = actionLogs.reduce((acc, log) => {
+    const unitData = operationalLogs.reduce((acc, log) => {
       // Get the unit from assigned users
       const assignedUsers = log.assigned_to?.map(id => users.find(u => u.id === id)).filter(Boolean) || [];
       const units = assignedUsers.map(user => user?.department_unit?.name).filter(Boolean);
@@ -2469,7 +2597,7 @@ const EconomistDashboard: React.FC = () => {
     };
 
     // Unit response time data
-    const unitResponseData = actionLogs.reduce((acc, log) => {
+    const unitResponseData = operationalLogs.reduce((acc, log) => {
       const responseTime = calculateResponseTime(log);
       if (!responseTime) return acc;
 
@@ -2513,90 +2641,254 @@ const EconomistDashboard: React.FC = () => {
     });
 
     return (
-      <div style={{ padding: '24px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '24px', color: '#1890ff' }}>
-          <DashboardOutlined style={{ marginRight: '12px' }} />
-          Action Logs Analytics Dashboard
-        </h1>
-        
+      <div style={{ padding: '24px', background: '#f7f8fa', minHeight: '100%' }}>
+        <div style={{ marginBottom: 24 }}>
+          <h1 style={{ fontSize: '26px', fontWeight: 700, margin: 0, color: '#262626' }}>
+            <DashboardOutlined style={{ marginRight: '12px', color: '#1890ff' }} />
+            Analytics Dashboard
+          </h1>
+          <div style={{ color: '#8c8c8c', marginTop: 4 }}>
+            Overview of action logs and the activities calendar
+          </div>
+        </div>
+
+        {/* Action Logs section */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 16px' }}>
+          <FileTextOutlined style={{ color: '#1890ff', fontSize: 18 }} />
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#262626' }}>Action Logs</h2>
+        </div>
+
         {/* Key Metrics Row */}
         <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
           <Col xs={24} sm={12} md={6}>
-            <Card>
-              <Statistic
-                title="Total Action Logs"
-                value={totalLogs}
-                valueStyle={{ color: '#1890ff' }}
-                prefix={<FileTextOutlined />}
-              />
-            </Card>
+            {statCard('Total Action Logs', totalLogs, <FileTextOutlined />, '#1890ff', '#e6f4ff')}
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card>
-              <Statistic
-                title="Completed"
-                value={completedLogs}
-                valueStyle={{ color: '#52c41a' }}
-                prefix={<CheckCircleOutlined />}
-              />
-            </Card>
+            {statCard('Completed', completedLogs, <CheckCircleOutlined />, '#52c41a', '#eaffea')}
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card>
-              <Statistic
-                title="In Progress"
-                value={inProgressLogs}
-                valueStyle={{ color: '#1890ff' }}
-                prefix={<ClockCircleOutlined />}
-              />
-            </Card>
+            {statCard('In Progress', inProgressLogs, <ClockCircleOutlined />, '#1890ff', '#e6f4ff')}
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card>
-              <Statistic
-                title="Overdue"
-                value={overdueLogs}
-                valueStyle={{ color: '#ff4d4f' }}
-                prefix={<ExclamationCircleOutlined />}
-              />
-            </Card>
+            {statCard('Overdue', overdueLogs, <ExclamationCircleOutlined />, '#ff4d4f', '#fff1f0')}
           </Col>
         </Row>
 
         {/* Progress Indicators Row */}
         <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
           <Col xs={24} md={12}>
-            <Card title="Completion Rate" size="small">
-              <Progress
-                type="circle"
-                percent={completionRate}
-                strokeColor="#52c41a"
-                format={percent => `${percent}%`}
-              />
-              <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                {completedLogs} of {totalLogs} logs completed
+            <Card title="Completion Rate" size="small" bordered={false} style={proCardStyle}>
+              <div style={{ textAlign: 'center' }}>
+                <Progress
+                  type="circle"
+                  percent={completionRate}
+                  strokeColor="#52c41a"
+                  format={percent => `${percent}%`}
+                />
+                <div style={{ textAlign: 'center', marginTop: '16px', color: '#595959' }}>
+                  {completedLogs} of {totalLogs} logs completed
+                </div>
               </div>
             </Card>
           </Col>
           <Col xs={24} md={12}>
-            <Card title="Overdue Rate" size="small">
-              <Progress
-                type="circle"
-                percent={overdueRate}
-                strokeColor="#ff4d4f"
-                format={percent => `${percent}%`}
-              />
-              <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                {overdueLogs} of {totalLogs} logs overdue
+            <Card title="Overdue Rate" size="small" bordered={false} style={proCardStyle}>
+              <div style={{ textAlign: 'center' }}>
+                <Progress
+                  type="circle"
+                  percent={overdueRate}
+                  strokeColor="#ff4d4f"
+                  format={percent => `${percent}%`}
+                />
+                <div style={{ textAlign: 'center', marginTop: '16px', color: '#595959' }}>
+                  {overdueLogs} of {totalLogs} logs overdue
+                </div>
               </div>
             </Card>
           </Col>
         </Row>
 
+        {/* Completion Trend (last 6 months) */}
+        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+          <Col xs={24}>
+            <Card title="Completion Trend — last 6 months" size="small" bordered={false} style={proCardStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 12, fontSize: 12, color: '#595959' }}>
+                <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#1890ff', marginRight: 6 }} />Action logs completed</span>
+                <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#722ed1', marginRight: 6 }} />Activities completed</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', height: 180, gap: 8 }}>
+                {trendData.map(d => (
+                  <div key={d.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 6, width: '100%' }}>
+                      <div
+                        title={`${d.logs} action logs`}
+                        style={{ width: 18, height: `${(d.logs / trendMax) * 100}%`, minHeight: d.logs > 0 ? 4 : 0, background: 'linear-gradient(180deg, #40a9ff, #1890ff)', borderRadius: '4px 4px 0 0', transition: 'height 0.3s' }}
+                      />
+                      <div
+                        title={`${d.activities} activities`}
+                        style={{ width: 18, height: `${(d.activities / trendMax) * 100}%`, minHeight: d.activities > 0 ? 4 : 0, background: 'linear-gradient(180deg, #9254de, #722ed1)', borderRadius: '4px 4px 0 0', transition: 'height 0.3s' }}
+                      />
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: 12, color: '#8c8c8c' }}>{d.label}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </Col>
+        </Row>
+
+        {/* ===== Activities Calendar section ===== */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, margin: '8px 0 16px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <CalendarOutlined style={{ color: '#722ed1', fontSize: 18 }} />
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#262626' }}>Activities Calendar</h2>
+          </div>
+          {fyOptions.length > 0 && (
+            <Select
+              value={dashboardFy}
+              onChange={setDashboardFy}
+              style={{ width: 200 }}
+              options={[
+                { label: 'All financial years', value: 'all' },
+                ...fyOptions.map(fy => ({ label: `FY ${fy.code}`, value: String(fy.id) })),
+              ]}
+            />
+          )}
+        </div>
+
+        {activityTotal === 0 ? (
+          <Card bordered={false} style={{ ...proCardStyle, marginBottom: 24 }}>
+            <Empty
+              description={dashboardFy === 'all'
+                ? 'No activities yet — add them from the Activities Calendar to populate these stats.'
+                : 'No activities recorded for the selected financial year.'}
+            />
+          </Card>
+        ) : (
+        <>
+        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+          <Col xs={24} sm={12} md={6}>
+            {statCard('Activities', activityScheduleCount, <CalendarOutlined />, '#722ed1', '#f9f0ff')}
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            {statCard('Occurrences', activityTotal, <ClusterOutlined />, '#722ed1', '#f9f0ff')}
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            {statCard('Completed', activityCompleted, <CheckCircleOutlined />, '#1890ff', '#e6f4ff')}
+          </Col>
+          <Col xs={24} sm={12} md={6}>
+            {statCard('Overdue', activityOverdue, <ExclamationCircleOutlined />, '#ff4d4f', '#fff1f0')}
+          </Col>
+        </Row>
+
+        <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+          <Col xs={24} md={8}>
+            <Card title="Activity Completion" size="small" bordered={false} style={proCardStyle}>
+              <div style={{ textAlign: 'center' }}>
+                <Progress
+                  type="circle"
+                  percent={activityCompletionRate}
+                  strokeColor="#722ed1"
+                  format={percent => `${percent}%`}
+                />
+                <div style={{ textAlign: 'center', marginTop: '16px', color: '#595959' }}>
+                  {activityCompleted} of {activityTotal} occurrences completed
+                </div>
+              </div>
+            </Card>
+          </Col>
+          <Col xs={24} md={8}>
+            <Card title="Schedule Health" size="small" bordered={false} style={proCardStyle}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {activityHealthData.map(({ label, count, color }) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <div style={{ width: '12px', height: '12px', backgroundColor: color, borderRadius: '50%', marginRight: '8px' }} />
+                      <span>{label}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 'bold' }}>{count}</span>
+                      <Progress
+                        percent={activityTotal > 0 ? Math.round((count / activityTotal) * 100) : 0}
+                        showInfo={false}
+                        strokeColor={color}
+                        size="small"
+                        style={{ width: '90px' }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </Col>
+          <Col xs={24} md={8}>
+            <Card title="Occurrences by Quarter" size="small" bordered={false} style={proCardStyle}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {activityByQuarter.map(({ quarter, count }) => (
+                  <div key={quarter} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                      <Tag color="purple" style={{ marginRight: 4 }}>{`Q${quarter}`}</Tag>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 'bold' }}>{count}</span>
+                      <Progress
+                        percent={activityTotal > 0 ? Math.round((count / activityTotal) * 100) : 0}
+                        showInfo={false}
+                        strokeColor="#722ed1"
+                        size="small"
+                        style={{ width: '90px' }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </Col>
+        </Row>
+
+        {Object.keys(activityByCategory).length > 0 && (
+          <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+            <Col xs={24}>
+              <Card title="Activities by Category" size="small" bordered={false} style={proCardStyle}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {Object.entries(activityByCategory)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([category, count]) => (
+                      <div key={category} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <CalendarOutlined style={{ marginRight: '8px', color: '#722ed1' }} />
+                          <span>{category}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 'bold' }}>{count}</span>
+                          <Progress
+                            percent={activityTotal > 0 ? Math.round((count / activityTotal) * 100) : 0}
+                            showInfo={false}
+                            strokeColor="#722ed1"
+                            size="small"
+                            style={{ width: '150px' }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </Card>
+            </Col>
+          </Row>
+        )}
+        </>
+        )}
+
+        {/* ===== Action Logs breakdown ===== */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0 16px' }}>
+          <FileTextOutlined style={{ color: '#1890ff', fontSize: 18 }} />
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#262626' }}>Action Logs Breakdown</h2>
+        </div>
+
         {/* Status Distribution */}
         <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
           <Col xs={24} lg={12}>
-            <Card title="Status Distribution" size="small">
+            <Card title="Status Distribution" size="small" bordered={false} style={proCardStyle}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {statusData.map(({ status, count, color }) => (
                   <div key={status} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2620,7 +2912,7 @@ const EconomistDashboard: React.FC = () => {
             </Card>
           </Col>
           <Col xs={24} lg={12}>
-            <Card title="Priority Distribution" size="small">
+            <Card title="Priority Distribution" size="small" bordered={false} style={proCardStyle}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {Object.entries(priorityData).map(([priority, count]) => {
                   const color = priority === 'High' ? '#ff4d4f' : priority === 'Medium' ? '#faad14' : '#52c41a';
@@ -2651,7 +2943,7 @@ const EconomistDashboard: React.FC = () => {
         {/* Department Distribution */}
         <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
           <Col xs={24}>
-            <Card title="Department Distribution" size="small">
+            <Card title="Department Distribution" size="small" bordered={false} style={proCardStyle}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {Object.entries(departmentData)
                   .sort(([,a], [,b]) => b - a)
@@ -2682,7 +2974,7 @@ const EconomistDashboard: React.FC = () => {
         {/* Department Unit Distribution */}
         <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
           <Col xs={24} lg={12}>
-            <Card title="Department Unit Distribution" size="small">
+            <Card title="Department Unit Distribution" size="small" bordered={false} style={proCardStyle}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {Object.entries(unitData)
                   .sort(([,a], [,b]) => b - a)
@@ -2711,7 +3003,7 @@ const EconomistDashboard: React.FC = () => {
             </Card>
           </Col>
           <Col xs={24} lg={12}>
-            <Card title="Unit Performance Overview" size="small">
+            <Card title="Unit Performance Overview" size="small" bordered={false} style={proCardStyle}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {Object.entries(unitResponseData).map(([unit, data]) => {
                   const onTimeRate = data.total > 0 ? Math.round((data.onTime / data.total) * 100) : 0;
@@ -2747,7 +3039,7 @@ const EconomistDashboard: React.FC = () => {
         {/* Unit Response Time Analytics */}
         <Row gutter={[16, 16]}>
           <Col xs={24}>
-            <Card title="Unit Response Time Analytics" size="small">
+            <Card title="Unit Response Time Analytics" size="small" bordered={false} style={proCardStyle}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {Object.entries(unitResponseData).map(([unit, data]) => {
                   const onTimeRate = data.total > 0 ? Math.round((data.onTime / data.total) * 100) : 0;
@@ -2856,7 +3148,7 @@ const EconomistDashboard: React.FC = () => {
               </Tag>
               {isExpired && record.is_active && (
                 <div style={{ marginTop: '4px', fontSize: '12px', color: '#ff4d4f' }}>
-                  ⚠️ Will be automatically revoked
+                  Will be automatically revoked
                 </div>
               )}
             </div>
@@ -3065,7 +3357,7 @@ const EconomistDashboard: React.FC = () => {
                 color: hasActiveLeaveDelegation ? '#cf1322' : '#389e0d'
             }}>
               <strong>
-                  {hasActiveLeaveDelegation ? '🏖️ On Leave' : '✅ Available'}
+                  {hasActiveLeaveDelegation ? 'On Leave' : 'Available'}
               </strong>
               <br />
                 {hasActiveLeaveDelegation ? (
@@ -3134,7 +3426,7 @@ const EconomistDashboard: React.FC = () => {
                   </Tooltip>
                   {user?.leave_delegation_status?.status === 'expiring_soon' && (
                     <div style={{ marginTop: '8px', padding: '4px 8px', backgroundColor: '#fff7e6', borderRadius: '4px', border: '1px solid #ffd591' }}>
-                      <strong>⚠️ Expiring Soon:</strong> Your leave delegation will expire in {user.leave_delegation_status.time_until_expiry}
+                      <strong>Expiring Soon:</strong> Your leave delegation will expire in {user.leave_delegation_status.time_until_expiry}
                     </div>
                   )}
                 </>
@@ -3284,6 +3576,17 @@ const EconomistDashboard: React.FC = () => {
     createForm.setFieldsValue({ team_leader: firstId });
   };
 
+  // Track viewport to switch between desktop rail and mobile drawer navigation.
+  useEffect(() => {
+    const onResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (!mobile) setMobileNavOpen(false);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   // Add delegation status refresh mechanism
   const [delegationStatusRefresh, setDelegationStatusRefresh] = useState(0);
   
@@ -3302,9 +3605,8 @@ const EconomistDashboard: React.FC = () => {
       // Refresh user data to get updated delegation status
       const refreshUserData = async () => {
         try {
-          // This will trigger a re-render with updated delegation status
-          // The backend will automatically return the correct status
-          console.log('🔄 Refreshing delegation status...');
+          // This will trigger a re-render with updated delegation status;
+          // the backend automatically returns the correct status.
         } catch (error) {
           console.error('Error refreshing delegation status:', error);
         }
@@ -3321,12 +3623,12 @@ const EconomistDashboard: React.FC = () => {
       
       if (status.status === 'expiring_soon') {
         message.warning(
-          `⚠️ Your leave delegation expires in ${status.time_until_expiry}. ` +
+          `Your leave delegation expires in ${status.time_until_expiry}. ` +
           'Approval responsibilities will automatically return to you when it expires.'
         );
       } else if (status.status === 'expired') {
         message.success(
-          '✅ Your leave delegation has expired. Approval responsibilities have been returned to you.'
+          'Your leave delegation has expired. Approval responsibilities have been returned to you.'
         );
       }
     }
@@ -3341,7 +3643,7 @@ const EconomistDashboard: React.FC = () => {
         
         if (hoursUntilExpiry <= 1 && hoursUntilExpiry > 0 && !isNaN(hoursUntilExpiry)) {
           message.warning(
-            `⚠️ Your acting Ag. C/PAP responsibilities expire in ${Math.round(hoursUntilExpiry * 60)} minutes. ` +
+            `Your acting Ag. C/PAP responsibilities expire in ${Math.round(hoursUntilExpiry * 60)} minutes. ` +
             'Approval responsibilities will automatically return to the Ag. C/PAP user.'
           );
         }
@@ -3351,62 +3653,96 @@ const EconomistDashboard: React.FC = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }} className="economist-dashboard-layout">
+      {/* Mobile backdrop */}
+      {isMobile && mobileNavOpen && (
+        <div className="pap-sider-backdrop" onClick={() => setMobileNavOpen(false)} />
+      )}
       <Sider
-        width={200}
+        width={220}
         breakpoint="lg"
-        collapsed={siderCollapsed}
-        onBreakpoint={setSiderCollapsed}
-        collapsedWidth={80}
-        style={{ background: '#fff', borderRight: '1px solid #e0e0e0', position: 'fixed', height: '100vh', left: 0, top: 0, zIndex: 10 }}
+        collapsed={isMobile ? false : siderCollapsed}
+        onBreakpoint={(broken) => { if (!isMobile) setSiderCollapsed(broken); }}
+        collapsedWidth={isMobile ? 0 : 80}
+        trigger={null}
+        className={`pap-sider${isMobile ? ' pap-sider-mobile' : ''}${isMobile && mobileNavOpen ? ' pap-sider-open' : ''}`}
+        style={{ position: 'fixed', height: '100vh', left: 0, top: 0, zIndex: 1000 }}
       >
-        {/* User Profile Section */}
-        <div
-          style={{
-            height: 140,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '24px 0',
-            borderBottom: '1px solid #f0f0f0',
-            background: '#fff',
-            marginBottom: 16,
-          }}
-        >
-          <Avatar
-            size={80}
-            icon={<UserOutlined />}
-            style={{
-              fontSize: 32,
-              marginBottom: 8,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: '#ffffff',
-              border: '3px solid rgba(255, 255, 255, 0.2)',
-              boxShadow: '0 8px 32px rgba(102, 126, 234, 0.3), 0 2px 8px rgba(0, 0, 0, 0.1)',
-              backdropFilter: 'blur(10px)',
-              borderRadius: '50%',
-              transition: 'all 0.3s ease',
-              cursor: 'pointer',
-              flexShrink: 0
-            }}
-          />
-          <div style={{ fontWeight: 600, fontSize: 16, color: '#222', textAlign: 'center', lineHeight: 1, marginBottom: 6 }}>{user ? `${user.first_name} ${user.last_name}` : ''}</div>
-          <div style={{ fontSize: 13, color: '#888', textAlign: 'center', lineHeight: 1 }}>{user?.designation || ''}</div>
+        {/* Desktop collapse toggle (floats on the sidebar edge) */}
+        {!isMobile && (
+          <button
+            type="button"
+            className="pap-sider-toggle"
+            aria-label={siderCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+            onClick={() => setSiderCollapsed(v => !v)}
+          >
+            {siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          </button>
+        )}
+        {/* Brand */}
+        <div className="pap-brand" style={{ justifyContent: siderCollapsed && !isMobile ? 'center' : 'flex-start' }}>
+          <img src="/Mofped_logo.png" alt="MOFPED" />
+          {!(siderCollapsed && !isMobile) && (
+            <div>
+              <div className="pap-brand-text">PAP Action Log</div>
+              <div className="pap-brand-sub">MoFPED</div>
+            </div>
+          )}
         </div>
+
+        {/* User Profile Section */}
+        <div className="pap-profile" style={{ padding: (siderCollapsed && !isMobile) ? '16px 0' : '20px 12px' }}>
+          <Avatar
+            size={(siderCollapsed && !isMobile) ? 40 : 64}
+            icon={<UserOutlined />}
+            className="pap-profile-avatar"
+          />
+          {!(siderCollapsed && !isMobile) && (
+            <>
+              <div className="pap-profile-name">{user ? `${user.first_name} ${user.last_name}` : ''}</div>
+              <div className="pap-profile-role">{user?.designation || ''}</div>
+            </>
+          )}
+        </div>
+
         <Menu
+          theme="dark"
           mode="inline"
           selectedKeys={[selectedMenuKey]}
-          style={{ height: '100%', borderRight: 0 }}
+          style={{ flex: 1, borderRight: 0 }}
           items={menuItems}
           onClick={handleMenuClick}
         />
       </Sider>
-      <Layout style={{ marginLeft: siderCollapsed ? 80 : 200, minHeight: '100vh', transition: 'margin-left 0.2s' }} className="economist-dashboard-main">
+      <Layout style={{ marginLeft: isMobile ? 0 : (siderCollapsed ? 80 : 220), minHeight: '100vh', transition: 'margin-left 0.2s' }} className="economist-dashboard-main">
+        {/* Mobile top bar with hamburger */}
+        {isMobile && (
+          <div className="pap-mobile-topbar">
+            <button
+              type="button"
+              className="pap-mobile-menu-btn"
+              aria-label="Open navigation"
+              onClick={() => setMobileNavOpen(true)}
+            >
+              <MenuOutlined />
+            </button>
+            <div className="pap-mobile-title">
+              <img src="/Mofped_logo.png" alt="MOFPED" />
+              <span>PAP Action Log</span>
+            </div>
+          </div>
+        )}
         <Content style={{ padding: 24, minHeight: 280, background: '#fff' }}>
           {selectedMenuKey === 'dashboard' ? (
             renderDashboard()
           ) : selectedMenuKey === 'delegations' ? (
             renderDelegationTable()
+          ) : selectedMenuKey === 'activities' ? (
+            <ActivitiesCalendar
+              users={allUsers.length ? allUsers : users}
+              departments={departments}
+              canManage={canCreateLogs}
+              defaultDepartmentId={user?.department}
+            />
           ) : (
             <Card
               className="dashboard-table-card"
@@ -3419,7 +3755,16 @@ const EconomistDashboard: React.FC = () => {
                    showPendingApproval ? (isAgCPAP ? 'Pending Approval' : 'Pending Approval') : 
                    'All Action Logs'}
                 </h1>
-                <div style={{ display: 'flex', gap: 16 }}>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Segmented
+                    value={logTypeFilter}
+                    onChange={(val) => setLogTypeFilter(val as 'all' | 'logs' | 'activities')}
+                    options={[
+                      { label: 'Action Logs', value: 'logs' },
+                      { label: 'Activities', value: 'activities' },
+                      { label: 'All', value: 'all' },
+                    ]}
+                  />
                   <Input.Search
                     placeholder="Search action logs..."
                     value={search}
@@ -3502,6 +3847,9 @@ const EconomistDashboard: React.FC = () => {
                 loading={loading}
                 rowKey="id"
                 size="middle"
+                onRow={(record) => ({
+                  style: record.activity_schedule != null ? { background: '#faf5ff' } : undefined,
+                })}
                 scroll={{ y: 'calc(100vh - 320px)' }}
                 pagination={{
                   pageSize: 15,
@@ -3516,7 +3864,7 @@ const EconomistDashboard: React.FC = () => {
             </Card>
           )}
           <div style={{ width: '100%', textAlign: 'center', padding: '16px 0', background: '#f5f6fa', color: '#888', fontSize: 14, borderTop: '1px solid #e0e0e0', marginBottom: 24 }}>
-            Copyright &copy; 2025 Project Analysis & Public Investment Department (PAP) || Ministry of Finance, Planning & Economic Development (MoFPED)
+            Copyright &copy; {new Date().getFullYear()} Project Analysis & Public Investment Department (PAP) || Ministry of Finance, Planning & Economic Development (MoFPED)
           </div>
           {/* Modals and dialogs */}
           {renderViewModal()}
@@ -3825,7 +4173,7 @@ const EconomistDashboard: React.FC = () => {
                     border: '1px solid #ffccc7',
                     color: '#cf1322'
                   }}>
-                    <strong>⚠️ Warning:</strong> Creating this delegation will automatically revoke any existing active delegation you may have.
+                    <strong>Warning:</strong> Creating this delegation will automatically revoke any existing active delegation you may have.
                   </div>
                 )} */}
                 

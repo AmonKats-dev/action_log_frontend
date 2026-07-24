@@ -209,11 +209,273 @@
   opacity: 0.6;
 }
 
-/* Layout sider (sidebar) - if used */
-.ant-layout-sider-children {
-  background: #fff !important;
-  border: 1.5px solid #e0e0e0 !important;
+/* ===== Left navigation (Sider) - professional dark theme ===== */
+.pap-sider {
+  background: linear-gradient(180deg, #1a252f 0%, #233140 55%, #2c3e50 100%) !important;
+  box-shadow: 2px 0 16px rgba(0, 0, 0, 0.18);
+}
+
+.pap-sider .ant-layout-sider-children {
+  background: transparent !important;
+  border: none !important;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Brand block */
+.pap-sider .pap-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pap-sider .pap-brand img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.pap-sider .pap-brand-text {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.pap-sider .pap-brand-sub {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Profile block */
+.pap-sider .pap-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 8px;
+}
+
+.pap-sider .pap-profile-avatar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  color: #fff !important;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 6px 18px rgba(102, 126, 234, 0.35);
+  margin-bottom: 10px;
+}
+
+.pap-sider .pap-profile-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: #ffffff;
+  text-align: center;
+  line-height: 1.2;
+  margin-bottom: 4px;
+  padding: 0 8px;
+}
+
+.pap-sider .pap-profile-role {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: center;
+  line-height: 1.2;
+  padding: 0 8px;
+}
+
+/* Menu over the dark gradient */
+.pap-sider .ant-menu.ant-menu-dark,
+.pap-sider .ant-menu-dark .ant-menu-sub {
+  background: transparent !important;
+}
+
+.pap-sider .ant-menu {
+  border-inline-end: none !important;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.pap-sider .ant-menu-item {
+  color: rgba(255, 255, 255, 0.72) !important;
+  border-radius: 8px !important;
+  margin: 4px 0 !important;
+  width: 100% !important;
+  height: 44px !important;
+  line-height: 44px !important;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pap-sider .ant-menu-item .anticon {
+  font-size: 17px;
+}
+
+.pap-sider .ant-menu-item:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.pap-sider .ant-menu-item-selected {
+  background: linear-gradient(135deg, #1890ff 0%, #2f6fed 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(24, 144, 255, 0.4);
+}
+
+.pap-sider .ant-menu-item-selected .anticon {
+  color: #ffffff !important;
+}
+
+.pap-sider .ant-menu-item-selected::after {
+  display: none !important;
+}
+
+/* Logout - pinned to the bottom, distinct treatment */
+.pap-sider .ant-menu-item.pap-logout {
+  margin-top: auto !important;
+  margin-bottom: 12px !important;
+  color: #ff9a96 !important;
+}
+
+.pap-sider .ant-menu-item.pap-logout:hover {
+  background: rgba(255, 77, 79, 0.16) !important;
+  color: #ff7875 !important;
+}
+
+/* Collapsed: center the icons */
+.pap-sider.ant-layout-sider-collapsed .ant-menu-item {
+  padding-inline: 0 !important;
+  text-align: center;
+}
+
+/* Desktop collapse toggle on the sidebar edge */
+.pap-sider-toggle {
+  position: absolute;
+  top: 16px;
+  right: -13px;
+  z-index: 1100;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: #1890ff;
+  color: #fff;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.pap-sider-toggle:hover {
+  background: #40a9ff;
+  transform: scale(1.08);
+}
+
+/* ===== Mobile off-canvas drawer ===== */
+.pap-sider.pap-sider-mobile {
+  transform: translateX(-100%);
+  transition: transform 0.28s ease;
+  width: 240px !important;
+  max-width: 84vw !important;
+  min-width: 0 !important;
+  flex: 0 0 240px !important;
+}
+
+.pap-sider.pap-sider-mobile.pap-sider-open {
+  transform: translateX(0);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
+}
+
+.pap-sider-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 999;
+  animation: papFadeIn 0.2s ease;
+}
+
+@keyframes papFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Mobile top bar (hamburger + brand) */
+.pap-mobile-topbar {
+  display: none;
+}
+
+.pap-mobile-menu-btn {
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.pap-mobile-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.pap-mobile-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+.pap-mobile-title img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  background: #fff;
+  border-radius: 6px;
+  padding: 2px;
+}
+
+@media (max-width: 767px) {
+  .pap-mobile-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 56px;
+    padding: 0 12px;
+    background: linear-gradient(135deg, #1a252f 0%, #2c3e50 100%);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Give content breathing room from the top bar */
+  .economist-dashboard-main .ant-layout-content {
+    padding: 16px !important;
+  }
 }
 
 /* Responsive: tablets and mobile */

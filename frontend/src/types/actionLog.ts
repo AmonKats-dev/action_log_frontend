@@ -28,6 +28,19 @@ export interface ActionLog {
   approval_status: ApprovalStatus;
   /** Current status/update text (PAP "Current Update/date" column); shown in view modal above comments. */
   current_update?: string | null;
+  /** --- Activities tracker fields (present when this log is an activity occurrence) --- */
+  activity_schedule?: number | null;
+  financial_year?: { id: number; code: string } | null;
+  category?: { id: number; name: string; code: string } | null;
+  subcategory?: { id: number; name: string } | null;
+  start_date?: string | null;
+  occurrence_index?: number | null;
+  reference_code?: string;
+  /** Derived FY quarter (1-4). */
+  quarter?: number | null;
+  /** Derived schedule health. */
+  schedule_health?: 'completed' | 'on_track' | 'overdue';
+  team_leader?: number | null;
   [key: string]: any;
 }
 

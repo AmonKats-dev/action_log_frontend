@@ -433,7 +433,7 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={200} theme="light">
+      <Sider width={200} theme="light" breakpoint="lg" collapsedWidth="0">
         <UserDisplay 
           user={user} 
           departmentName={departments.find(d => d.id === user.department)?.name}

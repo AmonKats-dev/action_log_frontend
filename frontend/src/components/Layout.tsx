@@ -66,7 +66,7 @@ const Layout: React.FC = () => {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
-            Action Log System
+            PAP Action Log
           </Typography>
           <Box sx={{ display: { xs: 'none', md: 'flex' }, gap: 0.5, alignItems: 'center' }}>
             {navItems.map(({ label, to }) => (
